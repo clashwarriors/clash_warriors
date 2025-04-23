@@ -230,7 +230,7 @@ const Collections = ({ user }) => {
                 </ul>
               </div>
 
-              {selectedCategory && (
+              {/* {selectedCategory && (
                 <div className="dropdown">
                   <div className="category-selector">
                     {selectedCollection || 'Select Collection'}
@@ -249,75 +249,39 @@ const Collections = ({ user }) => {
                     ))}
                   </ul>
                 </div>
-              )}
-            </div>
-          )}
-        </div>
-
-        <div className="search-bar-container visible">
-          <input
-            type="text"
-            placeholder="Search by tag"
-            className="colleciton-search-input"
-            value={searchTerm}
-            onChange={handleSearch}
-            ref={searchInputRef}
-          />
-
-          {filteredCards.length > 0 && (
-            <div className="search-results" ref={searchResultsRef}>
-              {filteredCards.map(({ category, collectionName, cards }) => (
-                <div
-                  key={`${category}-${collectionName}`}
-                  className="filtered-collection"
-                >
-                  <h4>
-                    {category.toUpperCase()} - {collectionName}
-                  </h4>
-                  <ul>
-                    {cards.map((card) => (
-                      <li
-                        key={`${collectionName}-${card.id}`}
-                        onClick={() =>
-                          handleSelectedCardClick(
-                            category,
-                            collectionName,
-                            card
-                          )
-                        }
-                      >
-                        {card.name}
-                        {card.image ? (
-                          <img
-                            src={card.image}
-                            alt={card.name}
-                            className="search-results-card-photo"
-                          />
-                        ) : (
-                          <img
-                            src="path/to/placeholder.jpg"
-                            alt="Placeholder"
-                            className="search-results-card-photo"
-                          />
-                        )}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ))}
+              )} */}
             </div>
           )}
         </div>
 
         <div className="collection-search-container">
-          <img
-            src="/assets/searchIcon.png"
-            alt="Search Icon"
-            className="collection-search-icon"
+          <button
             onClick={() => {
-              fetchSearchedCards(searchTerm)
+              navigate('/premium')
+              triggerHapticFeedback()
             }}
-          />
+            style={{
+              background: 'linear-gradient(135deg, #f5b942, #f0a500)',
+              color: '#fff',
+              fontWeight: 'bold',
+              padding: '10px 20px',
+              border: 'none',
+              borderRadius: '12px',
+              fontSize: '16px',
+              boxShadow: '0 4px 8px rgba(0,0,0,0.2)',
+              cursor: 'pointer',
+              transition: 'all 0.3s ease',
+              marginRight: '10px',
+            }}
+            onMouseEnter={(e) => {
+              e.target.style.transform = 'scale(1.05)'
+            }}
+            onMouseLeave={(e) => {
+              e.target.style.transform = 'scale(1)'
+            }}
+          >
+            Premium
+          </button>
         </div>
       </div>
 

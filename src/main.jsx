@@ -3,6 +3,8 @@ import ReactDOM from "react-dom/client";
 import App from "./App.jsx";
 import "./index.css";
 import telegramAnalytics from "@telegram-apps/analytics";
+import * as buffer from 'buffer'
+window.Buffer = buffer.Buffer
 
 // Check if running inside Telegram WebApp
 const isTelegramWebApp = window.Telegram?.WebApp?.initData;
@@ -22,3 +24,4 @@ ReactDOM.createRoot(document.getElementById("root")).render(
     <App />
   </React.StrictMode>
 );
+

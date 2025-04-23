@@ -3,7 +3,8 @@
     "origin": [
       "http://localhost:3000",
       "https://clashtesting.netlify.app",
-      "http://localhost:5173"
+      "http://localhost:5173",
+      "https://anchovy-allowed-opossum.ngrok-free.app"
     ],
     "method": ["GET"],
     "maxAgeSeconds": 3600

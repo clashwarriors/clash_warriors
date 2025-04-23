@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react'
 import axios from 'axios'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { ref, set, remove, onValue, get } from 'firebase/database'
 import { realtimeDB } from '../firebase'
 import DefaultDeckModal from './tournament/DefaultDeckModal'
@@ -494,7 +494,6 @@ const Tournament = ({ user }) => {
         onClose={() => setIsModalOpen(false)}
         user={user}
       />
-
       {isMatchmakingModalOpen && (
         <div className="tournamentHome-modal">
           <div className="tournamentHome-modal-content">

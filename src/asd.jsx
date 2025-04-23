@@ -13,7 +13,7 @@ import { TonConnectUIProvider } from '@tonconnect/ui-react'
 import Dashboard from './components/Dashboard'
 import Footer from './components/Footer'
 import Tournament from './components/Tournament'
-
+import Premium from './components/Premium'
 // Lazy load components
 const Airdrop = lazy(() => import('./components/Airdrop'))
 const Collections = lazy(() => import('./components/Collections'))
@@ -32,7 +32,6 @@ const MyCollection = lazy(() => import('./components/MyCollection'))
 const BuildDeck = lazy(() => import('./components/tournament/BuildDeck'))
 const Battle = lazy(() => import('./components/tournament/Battle'))
 const LeaderBoard = lazy(() => import('./components/tournament/LeaderBoard'))
-const Premium = lazy(() => import('./components/Premium'))
 const Settings = lazy(() => import('./components/Settings'))
 function App() {
   const [user, setUser] = useState(null)

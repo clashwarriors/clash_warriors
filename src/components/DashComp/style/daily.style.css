@@ -36,7 +36,7 @@
     flex-direction: row; /* Stack tasks vertically */
     align-items: center;
     justify-content: center;
-    gap: 15px; /* Space between tasks */
+    gap: 30px; /* Space between tasks */
   }
 
   .task-icon {

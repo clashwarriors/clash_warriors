@@ -29,67 +29,48 @@ const BuildDeck = ({ user }) => {
     []
   )
 
-  useEffect(() => {
+  const fetchCards = async () => {
     if (!user) return
-    const fetchDefaultCards = async () => {
-      const db = getDatabase()
-      const cardsRef = ref(db, `users/${user.userId}/cards`)
-      const snapshot = await get(cardsRef)
-      if (snapshot.exists()) {
-        const cardsData = snapshot.val()
-        const filteredCards = Object.entries(cardsData)
-          .filter(([_, card]) => card.defaultDeck === true)
-          .map(([id, card]) => ({
-            id,
-            ...card,
-            totalStats: Object.values(card.stats || {}).reduce(
-              (acc, stat) => acc + stat,
-              0
-            ),
-          }))
-        setDefaultCards(filteredCards)
-      }
-    }
-    fetchDefaultCards()
-  }, [user])
-
-useEffect(() => {
-  if (!user) return;
-  const fetchUserCards = async () => {
-    const db = getDatabase();
-    const cardsRef = ref(db, `users/${user.userId}/cards`);
-    const snapshot = await get(cardsRef);
+    const db = getDatabase()
+    const cardsRef = ref(db, `users/${user.userId}/cards`)
+    const snapshot = await get(cardsRef)
     if (snapshot.exists()) {
-      const cardsData = snapshot.val();
-      const normalize = (str) => str.toLowerCase().replace(/[^a-z0-9]/g, '');
-      const matchedCards = Object.entries(cardsData)
-        .map(([id, card]) => ({
+      const cardsData = snapshot.val()
+      const normalize = (str) => str.toLowerCase().replace(/[^a-z0-9]/g, '')
+      const defaultDeckCards = []
+      const availableCards = []
+
+      Object.entries(cardsData).forEach(([id, card]) => {
+        const cardWithStats = {
           id,
           ...card,
           totalStats: Object.values(card.stats || {}).reduce(
-            (acc, stat) => acc + stat,
+            (a, b) => a + b,
             0
           ),
-        }))
-        .filter((card) => {
-          const isNotInDefaultDeck =
-            card.defaultDeck === false || card.defaultDeck === undefined;
-          if (selectedCharacter === 'Select Character') {
-            return isNotInDefaultDeck;
-          }
-          return (
-            normalize(card.name).includes(normalize(selectedCharacter)) &&
-            isNotInDefaultDeck
-          );
-        });
-      setUserCards(matchedCards);
-    } else {
-      setUserCards([]);
-    }
-  };
-  fetchUserCards();
-}, [user, selectedCharacter]);
+        }
 
+        if (card.defaultDeck) {
+          defaultDeckCards.push(cardWithStats)
+        } else if (
+          selectedCharacter === 'Select Character' ||
+          normalize(card.name).includes(normalize(selectedCharacter))
+        ) {
+          availableCards.push(cardWithStats)
+        }
+      })
+
+      setDefaultCards(defaultDeckCards)
+      setUserCards(availableCards)
+    } else {
+      setDefaultCards([])
+      setUserCards([])
+    }
+  }
+
+  useEffect(() => {
+    fetchCards()
+  }, [user, selectedCharacter])
 
   const updateTotalSynergy = async (updatedCards) => {
     const newTotalSynergy = updatedCards.reduce((sum, card) => {
@@ -110,24 +91,24 @@ useEffect(() => {
       alert('You can only have 10 cards in your deck.')
       return
     }
-    const updatedDefaultCards = [...defaultCards, card]
-    setDefaultCards(updatedDefaultCards)
-    await update(ref(getDatabase(), `users/${user.userId}/cards/${card.id}`), {
+
+    const db = getDatabase()
+    await update(ref(db, `users/${user.userId}/cards/${card.id}`), {
       defaultDeck: true,
     })
-    updateTotalSynergy(updatedDefaultCards)
+
     triggerHapticFeedback()
+    await fetchCards()
   }
 
   const handleRemoveCard = async (card, index) => {
-    const updatedDefaultCards = [...defaultCards]
-    updatedDefaultCards.splice(index, 1)
-    setDefaultCards(updatedDefaultCards)
-    await update(ref(getDatabase(), `users/${user.userId}/cards/${card.id}`), {
+    const db = getDatabase()
+    await update(ref(db, `users/${user.userId}/cards/${card.id}`), {
       defaultDeck: false,
     })
-    updateTotalSynergy(updatedDefaultCards)
+
     dropHapticFeedback()
+    await fetchCards()
   }
 
   useEffect(() => {

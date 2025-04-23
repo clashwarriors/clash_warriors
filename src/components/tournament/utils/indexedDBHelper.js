@@ -1,4 +1,5 @@
 import { openDB } from 'idb'
+import { getStorage, ref, getDownloadURL } from 'firebase/storage';
 
 // ✅ Initialize IndexedDB (runs only once for new users)
 export const initDB = async () => {
@@ -45,11 +46,11 @@ export const saveAllFramesToIndexedDB = async (setProgress) => {
   const folders = ["ltr", "rtl", "dropSeq"];
   const frameCounts = { ltr: 165, rtl: 165, dropSeq: 60 };
   let savedFrames = 0;
-  const batchSize = 10; // Reduce batch size for Telegram WebView stability
+  const batchSize = 40; // Increase batch size for better performance
 
   for (const folder of folders) {
     const totalFramesInFolder = frameCounts[folder];
-    const storedFramesCount = await countStoredFrames(folder, totalFramesInFolder);
+    const storedFramesCount = await countStoredFrames(folder);
 
     if (storedFramesCount >= totalFramesInFolder) {
       console.log(`✅ All ${storedFramesCount} ${folder.toUpperCase()} frames are already stored.`);
@@ -65,8 +66,14 @@ export const saveAllFramesToIndexedDB = async (setProgress) => {
       const existingFrame = await db.get("frames", frameID);
       if (existingFrame) return null;
 
+      const fileName = folder === "dropSeq" ? `${frameID}.png` : `${i}.png`;
+      const storagePath = `assets/${folder}/${fileName}`;
+      const storage = getStorage();
+      const fileRef = ref(storage, storagePath);
+
       try {
-        const response = await fetch(folder === "dropSeq" ? `/dropSeq/${frameID}.png` : `/animations/${folder}/${i}.png`);
+        const url = await getDownloadURL(fileRef);
+        const response = await fetch(url);
         if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
 
         const blob = await response.blob();
@@ -76,27 +83,27 @@ export const saveAllFramesToIndexedDB = async (setProgress) => {
           reader.readAsDataURL(blob);
         });
 
-        return { frameID, base64Image }; // Cache in memory
+        return { frameID, base64Image };
       } catch (error) {
-        console.error(`❌ Failed to load: ${frameID}.png`, error);
+        console.error(`❌ Failed to load from storage: ${storagePath}`, error);
         return null;
       }
     };
 
+    // Using Promise.all to fetch and cache frames in parallel
     let framesToSave = [];
-
     for (let i = 1; i <= totalFramesInFolder; i += batchSize) {
-      const results = await Promise.all(
-        [...Array(batchSize).keys()]
-          .map(offset => i + offset)
-          .filter(index => index <= totalFramesInFolder) // Prevent out-of-bounds
-          .map(fetchAndCacheFrame)
-      );
+      const batchPromises = [...Array(batchSize).keys()]
+        .map(offset => i + offset)
+        .filter(index => index <= totalFramesInFolder)
+        .map(fetchAndCacheFrame);
+
+      const results = await Promise.all(batchPromises);
 
       framesToSave = framesToSave.concat(results.filter(frame => frame !== null));
 
       // Save frames in bulk
-      if (framesToSave.length >= batchSize) {
+      if (framesToSave.length > 0) {
         for (const { frameID, base64Image } of framesToSave) {
           await db.put("frames", base64Image, frameID);
           savedFrames++;
@@ -106,18 +113,11 @@ export const saveAllFramesToIndexedDB = async (setProgress) => {
         framesToSave = [];
       }
     }
-
-    // Save any remaining frames
-    for (const { frameID, base64Image } of framesToSave) {
-      await db.put("frames", base64Image, frameID);
-      savedFrames++;
-      if (setProgress) setProgress(savedFrames);
-      console.log(`✅ Stored ${folder}/${frameID}.png`);
-    }
   }
 
   console.log(`✅ All frames stored.`);
 };
+
 
 
 // ✅ Function to retrieve images from IndexedDB
