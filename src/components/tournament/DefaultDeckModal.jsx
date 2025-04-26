@@ -1,74 +1,62 @@
-import React, { useEffect, useState, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
-import './style/defaultDeckModal.style.css'
+import React, { useEffect, useState, useRef, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { getDatabase, ref, get } from 'firebase/database';
+import './style/defaultDeckModal.style.css';
 
 const DefaultDeckModal = ({ isOpen, onClose, user }) => {
-  const [defaultDeck, setDefaultDeck] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
-  const [totalSynergy, setTotalSynergy] = useState(0) // ✅ New state for synergy
-  const navigate = useNavigate()
-  const modalRef = useRef(null);
+  const [defaultDeck, setDefaultDeck] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [totalSynergy, setTotalSynergy] = useState(0);
+  const navigate = useNavigate();
+  const modalContentRef = useRef(null); // Only content, not overlay
+
+  const fetchDeckData = useCallback(async () => {
+    if (!user?.userId) return;
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const db = getDatabase();
+      const [synergySnap, cardsSnap] = await Promise.all([
+        get(ref(db, `users/${user.userId}/totalSynergy`)),
+        get(ref(db, `users/${user.userId}/cards`)),
+      ]);
+
+      setTotalSynergy(synergySnap.exists() ? synergySnap.val() : 0);
+
+      if (cardsSnap.exists()) {
+        const cardsData = cardsSnap.val();
+        const deck = Object.entries(cardsData)
+          .filter(([, cardInfo]) => cardInfo.defaultDeck)
+          .map(([id, cardInfo]) => ({
+            id,
+            ...cardInfo,
+          }));
+
+        setDefaultDeck(deck.slice(0, 10)); // Always 10 max
+      } else {
+        setDefaultDeck([]);
+      }
+    } catch (err) {
+      console.error('Error loading deck:', err);
+      setError('Failed to load default deck.');
+    } finally {
+      setLoading(false);
+    }
+  }, [user?.userId]);
 
   useEffect(() => {
-    if (isOpen && user?.userId) {
-      setLoading(true);
-  
-      const db = getDatabase();
-  
-      // Fetch totalSynergy
-      const synergyRef = ref(db, `users/${user.userId}/totalSynergy`);
-      get(synergyRef)
-        .then((snapshot) => {
-          if (snapshot.exists()) {
-            setTotalSynergy(snapshot.val());
-          } else {
-            setTotalSynergy(0);
-          }
-        })
-        .catch((error) => {
-          console.error('❌ Error fetching total synergy:', error);
-          setTotalSynergy(0);
-        });
-  
-      // Fetch default deck cards from Firebase
-      const cardsRef = ref(db, `users/${user.userId}/cards`);
-      get(cardsRef)
-        .then((snapshot) => {
-          if (snapshot.exists()) {
-            const cardsData = snapshot.val();
-            const defaultDeckArray = [];
-  
-            Object.entries(cardsData).forEach(([cardId, cardInfo]) => {
-              if (cardInfo.defaultDeck) {
-                defaultDeckArray.push({
-                  id: cardId,
-                  ...cardInfo,
-                });
-              }
-            });
-  
-            setDefaultDeck(defaultDeckArray);
-          } else {
-            console.warn('⚠️ No cards found.');
-            setDefaultDeck([]);
-          }
-        })
-        .catch((err) => {
-          console.error('❌ Error fetching cards from Firebase:', err);
-          setError('Failed to load default deck.');
-        })
-        .finally(() => {
-          setLoading(false);
-        });
+    if (isOpen) {
+      fetchDeckData();
     }
-  }, [isOpen, user?.userId]);
-  
+  }, [isOpen, fetchDeckData]);
+
   useEffect(() => {
     const handleClickOutside = (event) => {
-      if (modalRef.current && !modalRef.current.contains(event.target)) {
-        onClose(); // Close when clicked outside
+      if (modalContentRef.current && !modalContentRef.current.contains(event.target)) {
+        onClose();
       }
     };
 
@@ -81,52 +69,57 @@ const DefaultDeckModal = ({ isOpen, onClose, user }) => {
     };
   }, [isOpen, onClose]);
 
-  if (!isOpen) return null
+  if (!isOpen) return null;
 
   return (
-    <div className="default-deck-modal-overlay" onClick={onClose} ref={modalRef}>
+    <div className="default-deck-modal-overlay">
       <div
         className="default-deck-modal-content"
+        ref={modalContentRef}
         onClick={(e) => e.stopPropagation()}
       >
-        {loading && <p>Loading deck...</p>}
-        {error && <p className="error">{error}</p>}
+        {loading ? (
+          <p>Loading deck...</p>
+        ) : error ? (
+          <p className="error">{error}</p>
+        ) : (
+          <>
+            <div className="default-deck-modal-grid">
+              {Array.from({ length: 10 }, (_, index) => {
+                const card = defaultDeck[index];
+                return (
+                  <div key={index} className="default-deck-modal-card">
+                    {card ? (
+                      <img
+                        src={card.photo}
+                        alt={card.name}
+                        className="default-deck-modal-card-image"
+                        loading="lazy"
+                      />
+                    ) : (
+                      <div className="default-deck-modal-placeholder">
+                        Add Card
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
 
-        {!loading && !error && (
-          <div className="default-deck-modal-grid">
-            {Array.from({ length: 10 }, (_, index) => {
-              const card = defaultDeck[index]
-              return (
-                <div key={index} className="default-deck-modal-card">
-                  {card ? (
-                    <img
-                      src={card.photo}
-                      alt={card.name}
-                      className="default-deck-modal-card-image"
-                    />
-                  ) : (
-                    <div className="default-deck-modal-placeholder">
-                      Add Card
-                    </div>
-                  )}
-                </div>
-              )
-            })}
-          </div>
+            {/* Footer with Total Synergy */}
+            <div className="default-deck-modal-footer">
+              <button
+                className="go-to-builddeck-button"
+                onClick={() => navigate('/builddeck')}
+              >
+                Build Deck (Synergy: {totalSynergy})
+              </button>
+            </div>
+          </>
         )}
-
-        {/* Footer with Total Synergy in Button */}
-        <div className="default-deck-modal-footer">
-          <button
-            className="go-to-builddeck-button"
-            onClick={() => navigate('/builddeck')}
-          >
-            Build Deck (Synergy: {totalSynergy})
-          </button>
-        </div>
       </div>
     </div>
-  )
-}
+  );
+};
 
-export default DefaultDeckModal
+export default React.memo(DefaultDeckModal);

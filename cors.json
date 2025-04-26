@@ -4,7 +4,8 @@
       "http://localhost:3000",
       "https://clashtesting.netlify.app",
       "http://localhost:5173",
-      "https://anchovy-allowed-opossum.ngrok-free.app"
+      "https://clashwarriorstestingserver.loca.lt",
+      "https://clashwarriors.tech"
     ],
     "method": ["GET"],
     "maxAgeSeconds": 3600

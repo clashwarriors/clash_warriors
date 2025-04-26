@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import './style/dashboard.style.css';
 import Header from './DashComp/Header';
 import Daily from './DashComp/Daily';
@@ -6,39 +6,40 @@ import TaptoEarn from './DashComp/TaptoEarn';
 import Tutorial from './Tutorial';
 
 function Dashboard({ user, status }) {
-  const [loading, setLoading] = useState(true);
-  const [isTutorialOpen, setIsTutorialOpen] = useState(true);
+  const [isTutorialOpen, setIsTutorialOpen] = useState(false);
 
   useEffect(() => {
-    if (user) {
-      setLoading(false);
-    }
-  }, [user]);
-
-  useEffect(() => {
-    // Check if the tutorial is already completed (from localStorage)
-    if (localStorage.getItem('tutorialDone') === 'true') {
-      setIsTutorialOpen(false); // Don't show the tutorial
+    if (localStorage.getItem('tutorialDone') !== 'true') {
+      setIsTutorialOpen(true);
     }
   }, []);
 
-  const handleClose = () => {
-    setIsTutorialOpen(false); // Close tutorial modal
-  };
+  const handleCloseTutorial = useCallback(() => {
+    setIsTutorialOpen(false);
+    localStorage.setItem('tutorialDone', 'true'); // Save so it doesn't reopen next time
+  }, []);
+
+  const dashboardContent = useMemo(() => {
+    if (!user) {
+      return <div>{status}</div>;
+    }
+
+    return (
+      <div>
+        <Header user={user} />
+        <Daily user={user} />
+        <TaptoEarn user={user} />
+        {isTutorialOpen && <Tutorial user={user} onClose={handleCloseTutorial} />}
+      </div>
+    );
+  }, [user, status, isTutorialOpen, handleCloseTutorial]);
 
   return (
     <div className="dashboard">
-      {loading ? (
+      {!user ? (
         <div>Loading...</div>
-      ) : user ? (
-        <div>
-          <Header user={user} />
-          <Daily user={user} />
-          <TaptoEarn user={user} />
-          {isTutorialOpen && <Tutorial user={user} onClose={handleClose} />}
-        </div>
       ) : (
-        <div>{status}</div>
+        dashboardContent
       )}
     </div>
   );

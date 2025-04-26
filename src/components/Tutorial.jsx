@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import './style/tutorial.style.css'
-import { getDatabase, ref, update } from 'firebase/database'
+import { getDatabase, ref, update, get } from 'firebase/database'
 
 function Tutorial({ user, onClose }) {
   const [showFinalStep, setShowFinalStep] = useState(false)
@@ -79,7 +79,16 @@ function Tutorial({ user, onClose }) {
         This isn’t just a game. It’s a community, a movement, a revolution. Are you ready to lead? The battlefield is waiting, and the world is yours to conquer. 💪💥
       `,
     },
-   
+    {
+      title: 'Your Reward: 10 Free Cards 🎁',
+      content: `
+        You've completed the Clash Warriors tutorial – awesome job! 🥳<br/><br/>
+        As a thank-you gift, you now get <strong>10 free cards</strong> to begin your journey!<br/><br/>
+        These cards will help you start building your deck and prepare for your first battles.<br/><br/>
+        Tap the button below to claim them now. Good luck, warrior! 💥
+      `,
+      isRewardStep: true
+    },
   ]
 
   useEffect(() => {
@@ -125,12 +134,59 @@ function Tutorial({ user, onClose }) {
     })
   }
 
+  const grantFreeCards = async () => {
+    const db = getDatabase()
+    const freeCardsRef = ref(db, 'free/')
+    const userCardsRef = ref(db, `users/${user.userId}/cards`)
+
+    try {
+      const snapshot = await get(freeCardsRef)
+      if (!snapshot.exists()) {
+        alert('❌ No free cards found.')
+        return
+      }
+
+      const freeCardsData = snapshot.val()
+      const allCards = []
+
+      for (const category in freeCardsData) {
+        for (const cardId in freeCardsData[category]) {
+          allCards.push({
+            cardId,
+            data: freeCardsData[category][cardId],
+          })
+        }
+      }
+
+      if (allCards.length === 0) {
+        alert('❌ No cards available in the free pool.')
+        return
+      }
+
+      const shuffled = allCards.sort(() => 0.5 - Math.random())
+      const selected = shuffled.slice(0, 10)
+
+      const cardsToGrant = {}
+      selected.forEach(({ cardId, data }) => {
+        cardsToGrant[cardId] = data
+      })
+
+      await update(userCardsRef, cardsToGrant)
+      alert('🎉 10 cards have been added to your collection!')
+      onClose()
+      saveTutorialCompletion()
+    } catch (error) {
+      console.error('Error giving free cards:', error)
+      alert('⚠️ Something went wrong while granting cards.')
+    }
+  }
+
   const finishTutorial = () => {
     saveTutorialCompletion()
     onClose() // Close the tutorial after saving completion
   }
 
-  const { title, content, image } = tutorialSteps[currentStepIndex]
+  const { title, content, image, isRewardStep } = tutorialSteps[currentStepIndex]
 
   return (
     <div className="tutorial-container">
@@ -158,13 +214,17 @@ function Tutorial({ user, onClose }) {
               </button>
             )}
             {currentStepIndex < tutorialSteps.length - 1 ? (
-              <button className="next-btn" onClick={nextStep}>
-                Next →
-              </button>
+              <button className="next-btn" onClick={nextStep}>Next →</button>
             ) : (
-              <button className="finish-btn" onClick={finishTutorial}>
-                Finish
-              </button>
+              isRewardStep ? (
+                <button className="finish-btn" onClick={grantFreeCards}>
+                  🎁 Claim
+                </button>
+              ) : (
+                <button className="finish-btn" onClick={finishTutorial}>
+                  Finish
+                </button>
+              )
             )}
           </div>
         </div>

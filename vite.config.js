@@ -4,22 +4,40 @@ import { visualizer } from 'rollup-plugin-visualizer'
 import { NodeGlobalsPolyfillPlugin } from '@esbuild-plugins/node-globals-polyfill'
 
 export default defineConfig({
-  // other config settings
+  plugins: [
+    react(),
+    visualizer({
+      open: true, // Opens in browser after build
+      filename: 'bundle-report.html', // Optional custom name
+    }),
+  ],
+
   server: {
-    allowedHosts: ['anchovy-allowed-opossum.ngrok-free.app'],
+    host: true, // Needed for tunneling (e.g., localtunnel)
+    allowedHosts: ['clashwarriorstestingserver.loca.lt'],
   },
+
+  build: {
+    chunkSizeWarningLimit: 1500, // optional: silence 500kb warning
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          react: ['react', 'react-dom'],
+        },
+      },
+    },
+  },
+
   optimizeDeps: {
     esbuildOptions: {
-      // Node.js global to browser globalThis
       define: {
-        global: 'globalThis'
+        global: 'globalThis',
       },
-      // Enable esbuild polyfill plugins
       plugins: [
         NodeGlobalsPolyfillPlugin({
-          buffer: true
-        })
-      ]
-    }
-  }
+          buffer: true,
+        }),
+      ],
+    },
+  },
 })

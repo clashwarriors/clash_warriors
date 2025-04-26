@@ -1,72 +1,68 @@
-import React, { useEffect, useState } from 'react'
-import { realtimeDB } from '../firebase'
-import { ref, get } from 'firebase/database'
-import './style/collector.css'
+import React, { useEffect, useState, useMemo } from 'react';
+import { ref, get } from 'firebase/database';
+import { realtimeDB } from '../firebase';
+import './style/collector.css';
 
 const MyCollection = ({ user }) => {
-  const [cards, setCards] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [coins, setCoins] = useState(0)
-  const userId = user.userId
+  const [cards, setCards] = useState([]);
+  const [coins, setCoins] = useState(0);
+  const [loading, setLoading] = useState(true);
 
-  // Fetch user cards from the correct path
+  const userId = user.userId;
+
   useEffect(() => {
-    const fetchCards = async () => {
+    const fetchData = async () => {
       try {
-        const cardsRef = ref(realtimeDB, `users/${userId}/cards`)
-        const snapshot = await get(cardsRef)
+        const [cardsSnapshot, userSnapshot] = await Promise.all([
+          get(ref(realtimeDB, `users/${userId}/cards`)),
+          get(ref(realtimeDB, `users/${userId}`)),
+        ]);
 
-        if (snapshot.exists()) {
-          const fetchedCards = Object.entries(snapshot.val()).map(
-            ([id, data]) => ({
-              ...data,
-              id: id,
-            })
-          )
+        if (cardsSnapshot.exists()) {
+          const fetchedCards = Object.entries(cardsSnapshot.val()).map(([id, data]) => ({
+            ...data,
+            id: id,
+          }));
+          setCards(fetchedCards);
+        }
 
-          setCards(fetchedCards)
-        } else {
-          console.log('No cards found for this user.')
+        if (userSnapshot.exists()) {
+          const data = userSnapshot.val();
+          setCoins(data.coins ?? 0);
         }
       } catch (error) {
-        console.error('Error fetching user cards: ', error)
+        console.error('Error fetching data:', error);
       } finally {
-        setLoading(false)
+        setLoading(false);
       }
-    }
+    };
 
-    fetchCards()
-  }, [userId])
-
-  // Fetch user coins from Realtime Database
-  useEffect(() => {
-    const fetchUserData = async () => {
-      try {
-        const userRef = ref(realtimeDB, `users/${userId}`)
-        const snapshot = await get(userRef)
-        if (snapshot.exists()) {
-          const data = snapshot.val()
-          setCoins(data.coins)
-        } else {
-          console.log('No user found in Realtime Database')
-        }
-      } catch (error) {
-        console.error('Error fetching user data from Realtime DB:', error)
-      }
-    }
-
-    fetchUserData()
-  }, [userId])
+    fetchData();
+  }, [userId]);
 
   const formatNumber = (num) => {
-    if (num >= 1_000_000_000) return `${(num / 1_000_000_000).toFixed(2)}B`
-    if (num >= 1_000_000) return `${(num / 1_000_000).toFixed(2)}M`
-    if (num >= 1_000) return `${(num / 1_000).toFixed(2)}K`
-    return num.toString()
-  }
+    if (num >= 1_000_000_000) return `${(num / 1_000_000_000).toFixed(2)}B`;
+    if (num >= 1_000_000) return `${(num / 1_000_000).toFixed(2)}M`;
+    if (num >= 1_000) return `${(num / 1_000).toFixed(2)}K`;
+    return num.toString();
+  };
+
+  const cardsList = useMemo(() => (
+    cards.length > 0 ? (
+      <ul className="collector-container">
+        {cards.map((card) => (
+          <li key={card.id} className="collector-nft-card">
+            <img src={card.photo} alt={card.name} />
+          </li>
+        ))}
+      </ul>
+    ) : (
+      <p>No cards available</p>
+    )
+  ), [cards]);
 
   if (loading) {
-    return <p>Loading...</p>
+    return <p>Loading...</p>;
   }
 
   return (
@@ -86,19 +82,9 @@ const MyCollection = ({ user }) => {
         </div>
       </header>
 
-      {cards.length > 0 ? (
-        <ul className="collector-container">
-          {cards.map((card) => (
-            <li key={card.id} className="collector-nft-card">
-              <img src={card.photo} alt={card.name} />
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <p>No cards available</p>
-      )}
+      {cardsList}
     </div>
-  )
-}
+  );
+};
 
-export default MyCollection
+export default MyCollection;

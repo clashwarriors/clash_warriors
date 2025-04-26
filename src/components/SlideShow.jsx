@@ -1,72 +1,76 @@
-import React, { useState } from 'react'
-import './style/collection.css'
+import React, { useState, useRef, useCallback, useMemo } from 'react';
+import './style/collection.css';
 
 const SlideShow = ({ collections, totalSteps, onCardClick }) => {
-  const [currentStep, setCurrentStep] = useState(1)
-  console.log('Collections received by SlideShow:', collections)
+  const [currentStep, setCurrentStep] = useState(1);
+  const touchStartX = useRef(null);
 
-  const handleNext = () => {
-    setCurrentStep((prevStep) => (prevStep % totalSteps) + 1) // Loop to the first collection after the last one
-  }
+  const handleNext = useCallback(() => {
+    setCurrentStep((prevStep) => (prevStep % totalSteps) + 1);
+  }, [totalSteps]);
 
-  const handlePrevious = () => {
+  const handlePrevious = useCallback(() => {
     setCurrentStep((prevStep) =>
       prevStep - 1 <= 0 ? totalSteps : prevStep - 1
-    ) // Loop to the last collection from the first one
-  }
+    );
+  }, [totalSteps]);
 
-  const handleTouchStart = (event) => {
-    event.target.dataset.touchStartX = event.changedTouches[0].clientX
-  }
+  const handleTouchStart = useCallback((event) => {
+    touchStartX.current = event.touches ? event.touches[0].clientX : event.clientX;
+  }, []);
 
-  const handleTouchEnd = (event) => {
-    const touchStartX = parseFloat(event.target.dataset.touchStartX)
-    const touchEndX = event.changedTouches[0].clientX
-    const deltaX = touchStartX - touchEndX
+  const handleTouchEnd = useCallback((event) => {
+    const endX = event.changedTouches
+      ? event.changedTouches[0].clientX
+      : event.clientX;
+    const deltaX = touchStartX.current - endX;
 
     if (deltaX > 50) {
-      handleNext() // Swipe right -> go to next collection
+      handleNext();
     } else if (deltaX < -50) {
-      handlePrevious() // Swipe left -> go to previous collection
+      handlePrevious();
     }
-  }
+  }, [handleNext, handlePrevious]);
 
-  const cardClass = (collectionIndex) => {
+  const cardClass = useCallback((collectionIndex) => {
     if (collectionIndex === currentStep - 1)
-      return 'collections-nftcard collections-nftprincipal'
+      return 'collections-nftcard collections-nftprincipal';
     if (
       collectionIndex === currentStep - 2 ||
       (currentStep === 1 && collectionIndex === totalSteps - 1)
     )
-      return 'collections-nftcard collections-nftanterior'
+      return 'collections-nftcard collections-nftanterior';
     if (collectionIndex === currentStep)
-      return 'collections-nftcard collections-nftsiguiente'
-    return 'collections-nftcard collections-nftocultar'
-  }
+      return 'collections-nftcard collections-nftsiguiente';
+    return 'collections-nftcard collections-nftocultar';
+  }, [currentStep, totalSteps]);
+
+  const renderedCards = useMemo(() => (
+    collections.map((collection, index) => (
+      <div
+        key={collection.id || index}
+        className={cardClass(index)}
+        id={`collections-nftcard-${index}`}
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+        onMouseDown={handleTouchStart} // ✅ Added mouse support
+        onMouseUp={handleTouchEnd}     // ✅ Added mouse support
+        onClick={() => onCardClick(collection)}
+      >
+        <div className="collections-nftcard-image">
+          <img src={collection.image} alt={collection.name} />
+        </div>
+      </div>
+    ))
+  ), [collections, cardClass, handleTouchStart, handleTouchEnd, onCardClick]);
 
   return (
     <div className="collections-nftcontenedor">
-      {[...Array(totalSteps)].map((_, index) => {
-        const collection = collections[index]
-        return (
-          <div
-            key={collection.id || index} // Ensure unique key for each card
-            className={cardClass(index)}
-            id={`collections-nftcard-${index}`}
-            onTouchStart={handleTouchStart}
-            onTouchEnd={handleTouchEnd}
-            onClick={() => onCardClick(collection)} // Trigger the onCardClick handler
-          >
-            <div className="collections-nftcard-image">
-              <img src={collection.image} alt={collection.name} />
-            </div>
-          </div>
-        )
-      })}
+      {renderedCards}
       <div id="div-transparent-previous" onClick={handlePrevious}></div>
       <div id="div-transparent-next" onClick={handleNext}></div>
     </div>
-  )
-}
+  );
+};
 
-export default SlideShow
+export default SlideShow;

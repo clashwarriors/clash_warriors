@@ -1,185 +1,173 @@
-import React, { useEffect, useState, useRef, useMemo } from 'react'
-import './style/collection.css'
-import { ref, get, onValue } from 'firebase/database'
-import { realtimeDB } from '../firebase'
-import SlideShow from './SlideShow'
-import Modal from './Modal'
-import { useNavigate } from 'react-router-dom'
-import { triggerHapticFeedback } from './tournament/utils/haptic'
+import React, { useEffect, useState, useRef, useMemo, useCallback } from 'react';
+import './style/collection.css';
+import { ref, get, onValue } from 'firebase/database';
+import { realtimeDB } from '../firebase';
+import SlideShow from './SlideShow';
+import Modal from './Modal';
+import { useNavigate } from 'react-router-dom';
+import { triggerHapticFeedback } from './tournament/utils/haptic';
 
 const Collections = ({ user }) => {
-  const [cardsData, setCardsData] = useState({})
-  const [selectedCategory, setSelectedCategory] = useState('common')
-  const [selectedCollection, setSelectedCollection] = useState('')
-  const [showFilters, setShowFilters] = useState(false)
-  const [coins, setCoins] = useState(0)
-  const searchResultsRef = useRef(null)
-  const searchInputRef = useRef(null)
-  const filterDropdownRef = useRef(null)
-  const [searchTerm, setSearchTerm] = useState('')
-  const [filteredCards, setFilteredCards] = useState([])
-  const userId = user.userId
-  const [selectedCard, setSelectedCard] = useState(null)
-  const navigate = useNavigate()
-  const [cachedCards, setCachedCards] = useState({})
+  const [cardsData, setCardsData] = useState({});
+  const [selectedCategory, setSelectedCategory] = useState('common');
+  const [selectedCollection, setSelectedCollection] = useState('');
+  const [showFilters, setShowFilters] = useState(false);
+  const [coins, setCoins] = useState(0);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filteredCards, setFilteredCards] = useState([]);
+  const [selectedCard, setSelectedCard] = useState(null);
+  const [cachedCards, setCachedCards] = useState({});
+
+  const searchResultsRef = useRef(null);
+  const searchInputRef = useRef(null);
+  const filterDropdownRef = useRef(null);
+  const navigate = useNavigate();
+  const userId = user.userId;
 
   useEffect(() => {
-    const userRef = ref(realtimeDB, `users/${userId}`)
-
+    const userRef = ref(realtimeDB, `users/${userId}`);
     const unsubscribe = onValue(userRef, (snapshot) => {
       if (snapshot.exists()) {
-        const data = snapshot.val()
-        setCoins(data.coins)
-      } else {
-        console.log('No user found in Realtime Database')
+        const data = snapshot.val();
+        setCoins(data.coins);
       }
-    })
+    });
+    return () => unsubscribe();
+  }, [userId]);
 
-    // Cleanup listener when the component unmounts
-    return () => unsubscribe()
-  }, [userId]) // No need to include `userId` here, since it doesn't change
-
-  useEffect(() => {
-    function handleClickOutside(event) {
-      if (
-        filterDropdownRef.current &&
-        !filterDropdownRef.current.contains(event.target)
-      ) {
-        setShowFilters(false)
-      }
-
-      if (
-        searchResultsRef.current &&
-        !searchResultsRef.current.contains(event.target) &&
-        searchInputRef.current &&
-        !searchInputRef.current.contains(event.target)
-      ) {
-        setFilteredCards([])
-      }
-    }
-
-    document.addEventListener('mousedown', handleClickOutside)
-
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [])
-
-  const collectionOptions = useMemo(
-    () => ({
-      common: ['Xalgrith', 'Stormscaller', 'Starivya', 'Frostguard'],
-      uncommon: ['Xalgrith', 'Stormscaller', 'Starivya', 'Frostguard'],
-      rare: ['Xalgrith', 'Stormscaller', 'Starivya', 'Frostguard'],
-      mythical: ['Xalgrith', 'Stormscaller', 'Starivya', 'Frostguard'],
-      legendary: ['Xalgrith', 'Stormscaller', 'Starivya', 'Frostguard'],
-    }),
-    []
-  )
+  const collectionOptions = useMemo(() => ({
+    common: ['Xalgrith', 'Stormscaller', 'Starivya', 'Frostguard'],
+    uncommon: ['Xalgrith', 'Stormscaller', 'Starivya', 'Frostguard'],
+    rare: ['Xalgrith', 'Stormscaller', 'Starivya', 'Frostguard'],
+    mythical: ['Xalgrith', 'Stormscaller', 'Starivya', 'Frostguard'],
+    legendary: ['Xalgrith', 'Stormscaller', 'Starivya', 'Frostguard'],
+  }), []);
 
   const formatNumber = (num) => {
-    if (num >= 1_000_000_000) return `${(num / 1_000_000_000).toFixed(2)}B`
-    if (num >= 1_000_000) return `${(num / 1_000_000).toFixed(2)}M`
-    if (num >= 1_000) return `${(num / 1_000).toFixed(2)}K`
-    return num.toString()
-  }
+    if (num >= 1_000_000_000) return `${(num / 1_000_000_000).toFixed(2)}B`;
+    if (num >= 1_000_000) return `${(num / 1_000_000).toFixed(2)}M`;
+    if (num >= 1_000) return `${(num / 1_000).toFixed(2)}K`;
+    return num.toString();
+  };
 
   useEffect(() => {
     if (cachedCards[selectedCategory]) {
-      // Use cached data if available
-      setCardsData(cachedCards[selectedCategory])
-      return
+      setCardsData(cachedCards[selectedCategory]);
+      return;
     }
 
     const fetchCards = async () => {
       try {
-        const categoryRef = ref(realtimeDB, selectedCategory)
-        const snapshot = await get(categoryRef)
+        const categoryRef = ref(realtimeDB, selectedCategory);
+        const snapshot = await get(categoryRef);
         if (snapshot.exists()) {
-          const categoryData = snapshot.val()
-          setCardsData(categoryData)
-          setCachedCards((prev) => ({
+          const categoryData = snapshot.val();
+          setCardsData(categoryData);
+          setCachedCards(prev => ({
             ...prev,
             [selectedCategory]: categoryData,
-          }))
-        } else {
-          console.log(`No collections found under '${selectedCategory}'.`)
+          }));
         }
       } catch (error) {
-        console.error('Error fetching cards:', error)
-        alert('Failed to fetch cards. Please try again.')
+        console.error('Error fetching cards:', error);
       }
-    }
+    };
 
     if (selectedCategory) {
-      fetchCards()
+      fetchCards();
     }
-  }, [selectedCategory, cachedCards]) // Only fetch if category is not cached
+  }, [selectedCategory, cachedCards]);
 
-  const fetchSearchedCards = async (term) => {
+  const fetchSearchedCards = useCallback(async (term) => {
     try {
-      console.log('Searching cards for term:', term)
-
-      const allFilteredCards = []
+      const allFilteredCards = [];
 
       for (let category of Object.keys(collectionOptions)) {
         for (let collectionName of collectionOptions[category]) {
-          const cardCollectionPath = `categories/${category}/${collectionName}/cards`
-          const snapshot = await get(ref(realtimeDB, cardCollectionPath))
+          const cardCollectionPath = `categories/${category}/${collectionName}/cards`;
+          const snapshot = await get(ref(realtimeDB, cardCollectionPath));
           if (snapshot.exists()) {
-            const cardsList = snapshot.val()
-            const matchingCards = Object.values(cardsList).filter(
-              (card) =>
-                card.tags &&
-                card.tags.some((tag) => tag.toLowerCase().includes(term))
-            )
+            const cardsList = snapshot.val();
+            const matchingCards = Object.values(cardsList).filter(card =>
+              card.tags?.some(tag => tag.toLowerCase().includes(term))
+            );
             if (matchingCards.length > 0) {
               allFilteredCards.push({
                 category,
                 collectionName,
                 cards: matchingCards,
-              })
+              });
             }
           }
         }
       }
 
-      console.log('Filtered cards with categories:', allFilteredCards)
-      setFilteredCards(allFilteredCards)
+      setFilteredCards(allFilteredCards);
     } catch (error) {
-      console.error('Error searching cards:', error)
-      alert('Failed to search cards. Please try again.')
+      console.error('Error searching cards:', error);
     }
-  }
+  }, [collectionOptions]);
 
-  const handleSearch = (e) => {
-    const term = e.target.value.toLowerCase()
-    setSearchTerm(term)
-    console.log('Search term:', term)
+  const handleSearch = useCallback((e) => {
+    const term = e.target.value.toLowerCase();
+    setSearchTerm(term);
 
     if (!term) {
-      setFilteredCards([])
-      return
+      setFilteredCards([]);
+      return;
     }
 
-    fetchSearchedCards(term)
-  }
+    fetchSearchedCards(term);
+  }, [fetchSearchedCards]);
 
-  const handleSelectedCardClick = (category, collectionName, card) => {
-    triggerHapticFeedback()
-    console.log('Category:', category)
-    console.log('Collection:', collectionName)
-    console.log('Card clicked:', card)
-
+  const handleSelectedCardClick = useCallback((category, collectionName, card) => {
+    triggerHapticFeedback();
     setSelectedCard({
       ...card,
       category,
       collection: collectionName,
       cardId: card.cardId,
-    })
-  }
+    });
+  }, []);
 
-  const handleExploreClick = (category, collection) => {
-    triggerHapticFeedback()
-    navigate('/collector', { state: { category, collection } })
-  }
+  const handleExploreClick = useCallback((category, collection) => {
+    triggerHapticFeedback();
+    navigate('/collector', { state: { category, collection } });
+  }, [navigate]);
+
+  const cardsSections = useMemo(() => {
+    return Object.entries(cardsData).map(([collectionName, collectionData]) => {
+      if (!selectedCollection || selectedCollection === collectionName) {
+        const cardsArray = Object.entries(collectionData).map(([cardId, card]) => ({
+          ...card,
+          cardId,
+        }));
+
+        return (
+          <div key={collectionName} className="collection-section">
+            <div className="group-title">{collectionName}</div>
+
+            <div className="slideshow-wrapper">
+              <SlideShow
+                collections={cardsArray}
+                totalSteps={cardsArray.length}
+                onCardClick={(card) =>
+                  handleSelectedCardClick(selectedCategory, collectionName, card)
+                }
+              />
+              <button
+                className="explore-btn"
+                onClick={() => handleExploreClick(selectedCategory, collectionName)}
+              >
+                Explore {collectionName}
+              </button>
+            </div>
+          </div>
+        );
+      }
+      return null;
+    });
+  }, [cardsData, selectedCollection, handleExploreClick, handleSelectedCardClick, selectedCategory]);
 
   return (
     <div className="collections-container">
@@ -204,7 +192,7 @@ const Collections = ({ user }) => {
             src="/assets/filterIcon.png"
             alt="Filter Icon"
             className="filter-icon"
-            onClick={() => setShowFilters(!showFilters)}
+            onClick={() => setShowFilters(prev => !prev)}
           />
 
           {showFilters && (
@@ -219,9 +207,8 @@ const Collections = ({ user }) => {
                       key={category}
                       style={{ '--delay': `${index * 0.1}s` }}
                       onClick={() => {
-                        setSelectedCategory(category)
-                        setSelectedCollection('')
-                        console.log('Category selected:', category)
+                        setSelectedCategory(category);
+                        setSelectedCollection('');
                       }}
                     >
                       {category.charAt(0).toUpperCase() + category.slice(1)}
@@ -229,27 +216,6 @@ const Collections = ({ user }) => {
                   ))}
                 </ul>
               </div>
-
-              {/* {selectedCategory && (
-                <div className="dropdown">
-                  <div className="category-selector">
-                    {selectedCollection || 'Select Collection'}
-                  </div>
-                  <ul className="dropdown-list">
-                    {collectionOptions[selectedCategory].map((collection) => (
-                      <li
-                        key={collection}
-                        onClick={() => {
-                          setSelectedCollection(collection)
-                          console.log('Collection selected:', collection)
-                        }}
-                      >
-                        {collection}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )} */}
             </div>
           )}
         </div>
@@ -285,45 +251,7 @@ const Collections = ({ user }) => {
         </div>
       </div>
 
-      <div>
-        {Object.entries(cardsData).map(([collectionName, collectionData]) => {
-          if (!selectedCollection || selectedCollection === collectionName) {
-            return (
-              <div key={collectionName} className="collection-section">
-                <div className="group-title">{`${collectionName}`}</div>
-
-                <div className="slideshow-wrapper">
-                  <SlideShow
-                    collections={Object.entries(collectionData).map(
-                      ([cardId, card]) => ({
-                        ...card,
-                        cardId,
-                      })
-                    )}
-                    totalSteps={Object.keys(collectionData).length}
-                    onCardClick={(card) =>
-                      handleSelectedCardClick(
-                        selectedCategory,
-                        collectionName,
-                        card
-                      )
-                    }
-                  />
-                  <button
-                    className="explore-btn"
-                    onClick={() =>
-                      handleExploreClick(selectedCategory, collectionName)
-                    }
-                  >
-                    Explore {collectionName}
-                  </button>
-                </div>
-              </div>
-            )
-          }
-          return null
-        })}
-      </div>
+      <div>{cardsSections}</div>
 
       {selectedCard && (
         <Modal
@@ -337,7 +265,7 @@ const Collections = ({ user }) => {
         />
       )}
     </div>
-  )
-}
+  );
+};
 
-export default Collections
+export default Collections;

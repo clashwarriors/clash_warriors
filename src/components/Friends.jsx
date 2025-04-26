@@ -1,72 +1,77 @@
-import React, { useState, useEffect } from 'react'
-import { ref, onValue, get } from 'firebase/database'
-import { realtimeDB } from '../firebase' // ✅ Import Firebase DB
-import './style/Friends.css'
-import Header from './DashComp/Header'
-import { triggerHapticFeedback } from './tournament/utils/haptic'
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { ref, onValue, get } from 'firebase/database';
+import { realtimeDB } from '../firebase';
+import './style/Friends.css';
+import Header from './DashComp/Header';
+import { triggerHapticFeedback } from './tournament/utils/haptic';
 
 const Friends = ({ user }) => {
-  console.log('userID', user.userId)
+  const [invitedFriends, setInvitedFriends] = useState([]);
 
-  //const referralLink = `https://t.me/clash_warriors_bot?start=${user.userId}`
-  const referralLink = `https://share.clashwarriors.tech/invite/${user.userId}`;
+  const referralLink = useMemo(() => 
+    `https://share.clashwarriors.tech/invite/${user.userId}`, 
+  [user.userId]);
 
-  // ✅ State for storing invited friends' names
-  const [invitedFriends, setInvitedFriends] = useState([])
-  const totalReferrals = invitedFriends.length
+  const totalReferrals = invitedFriends.length;
 
-  // ✅ Fetch Friends' User IDs & Then Their Names
   useEffect(() => {
-    if (!user?.userId) return // ✅ Ensure user ID is available
+    if (!user?.userId) return;
 
-    const friendsRef = ref(realtimeDB, `users/${user.userId}/friends`)
+    const friendsRef = ref(realtimeDB, `users/${user.userId}/friends`);
 
-    onValue(friendsRef, async (snapshot) => {
-      const friendIds = snapshot.val()
+    const unsubscribe = onValue(friendsRef, async (snapshot) => {
+      const friendIds = snapshot.val();
       if (!friendIds) {
-        setInvitedFriends([])
-        return
+        setInvitedFriends([]);
+        return;
       }
 
-      // ✅ Fetch names for each userId
-      const friendNamesPromises = Object.values(friendIds).map(
-        async (friendId) => {
-          const userRef = ref(realtimeDB, `users/${friendId}`)
-          const userSnapshot = await get(userRef)
-          const userData = userSnapshot.val()
-          return userData
-            ? `${userData.first_name} ${userData.last_name}`
-            : 'Unknown User'
-        }
-      )
+      const friendNamesPromises = Object.values(friendIds).map(async (friendId) => {
+        const userRef = ref(realtimeDB, `users/${friendId}`);
+        const userSnapshot = await get(userRef);
+        const userData = userSnapshot.val();
+        return userData
+          ? `${userData.first_name} ${userData.last_name}`
+          : 'Unknown User';
+      });
 
-      // ✅ Resolve all promises and update state
-      const friendNames = await Promise.all(friendNamesPromises)
-      setInvitedFriends(friendNames)
-    })
-  }, [user?.userId]) // ✅ Runs when user ID changes
+      const friendNames = await Promise.all(friendNamesPromises);
+      setInvitedFriends(friendNames);
+    });
 
-  // ✅ Copy referral link
-  const copyToClipboard = () => {
-    navigator.clipboard.writeText(referralLink)
-    alert('Referral link copied!')
-    triggerHapticFeedback()
-  }
+    return () => unsubscribe();
+  }, [user?.userId]);
 
-  // ✅ Telegram Share Function
-  const shareOnTelegram = () => {
-    triggerHapticFeedback()
+  const copyToClipboard = useCallback(() => {
+    navigator.clipboard.writeText(referralLink);
+    triggerHapticFeedback();
+    alert('Referral link copied!');
+  }, [referralLink]);
+
+  const shareOnTelegram = useCallback(() => {
+    triggerHapticFeedback();
     const message = encodeURIComponent(
       `🔥 Start Clash Wars & Earn Rewards! 🎉\n\nUse my referral link: ${referralLink}`
+    );
+    const telegramUrl = `https://t.me/share/url?url=${encodeURIComponent(referralLink)}&text=${message}`;
+    window.open(telegramUrl, '_blank');
+  }, [referralLink]);
+
+  const friendsList = useMemo(() => (
+    invitedFriends.length > 0 ? (
+      invitedFriends.map((friend, index) => (
+        <div key={index} className="friend-item">
+          {friend}
+        </div>
+      ))
+    ) : (
+      <p>No referrals yet.</p>
     )
-    const telegramUrl = `https://t.me/share/url?url=${encodeURIComponent(referralLink)}&text=${message}`
-    window.open(telegramUrl, '_blank')
-  }
+  ), [invitedFriends]);
 
   return (
     <div className="friends-page">
-      <Header user={user} /> {/* ✅ Header stays at the top */}
-      {/* ✅ Content Wrapper (Centers Invite Box & Referral List) */}
+      <Header user={user} />
       <div className="friends-content">
         <div className="invite-box">
           <h2>Refer & Earn</h2>
@@ -89,22 +94,13 @@ const Friends = ({ user }) => {
           </div>
         </div>
 
-        {/* ✅ Dynamic Referral List */}
         <div className="referral-list">
           <h3>Your Referrals</h3>
-          {invitedFriends.length > 0 ? (
-            invitedFriends.map((friend, index) => (
-              <div key={index} className="friend-item">
-                {friend}
-              </div>
-            ))
-          ) : (
-            <p>No referrals yet.</p>
-          )}
+          {friendsList}
         </div>
       </div>
     </div>
-  )
-}
+  );
+};
 
-export default Friends
+export default Friends;

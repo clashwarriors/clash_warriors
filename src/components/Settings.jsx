@@ -1,88 +1,79 @@
-import React, { useEffect, useState, useRef } from 'react'
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import {
   TonConnectButton,
   useTonConnectUI,
   useTonWallet,
-} from '@tonconnect/ui-react'
-import { realtimeDB, db } from '../firebase'
-import { ref, onValue, set } from 'firebase/database'
-import { collection, getDocs, addDoc } from 'firebase/firestore'
-import './style/settings.style.css'
+} from '@tonconnect/ui-react';
+import { realtimeDB, db } from '../firebase';
+import { ref, onValue, set } from 'firebase/database';
+import { collection, getDocs, addDoc } from 'firebase/firestore';
+import './style/settings.style.css';
 
 const Settings = ({ user }) => {
-  const wallet = useTonWallet()
-  const [tonConnectUI] = useTonConnectUI()
-  const [walletSaved, setWalletSaved] = useState(false)
+  const wallet = useTonWallet();
+  const [tonConnectUI] = useTonConnectUI();
+  const [walletSaved, setWalletSaved] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState(
     JSON.parse(localStorage.getItem('soundEnabled')) ?? true
-  )
+  );
+  const [importantFaqs, setImportantFaqs] = useState([]);
+  const [allFaqs, setAllFaqs] = useState([]);
+  const [faqLoading, setFaqLoading] = useState(true);
+  const [questionInput, setQuestionInput] = useState('');
+  const [submitMsg, setSubmitMsg] = useState('');
+  const [showSupportModal, setShowSupportModal] = useState(false);
+  const [showAllFAQs, setShowAllFAQs] = useState(false);
 
-  const [importantFaqs, setImportantFaqs] = useState([])
-  const [allFaqs, setAllFaqs] = useState([])
-  const [faqLoading, setFaqLoading] = useState(true)
-  const [questionInput, setQuestionInput] = useState('')
-  const [submitMsg, setSubmitMsg] = useState('')
-  const [showSupportModal, setShowSupportModal] = useState(false)
-  const [showAllFAQs, setShowAllFAQs] = useState(false)
-
-  // Save wallet address to realtime DB if not already saved
   useEffect(() => {
     if (wallet && user?.userId && !walletSaved) {
-      const walletAddress = wallet.account.address
-      const userWalletRef = ref(realtimeDB, `users/${user.userId}/walletId`)
+      const walletAddress = wallet.account.address;
+      const userWalletRef = ref(realtimeDB, `users/${user.userId}/walletId`);
       onValue(
         userWalletRef,
         (snapshot) => {
-          const data = snapshot.val() || {}
-          const existing = Object.values(data)
+          const data = snapshot.val() || {};
+          const existing = Object.values(data);
           if (!existing.includes(walletAddress)) {
-            const newIndex = Object.keys(data).length + 1
-            const updates = {
-              ...data,
-              [newIndex]: walletAddress,
-            }
-            set(userWalletRef, updates)
+            const newIndex = Object.keys(data).length + 1;
+            const updates = { ...data, [newIndex]: walletAddress };
+            set(userWalletRef, updates);
           }
-          setWalletSaved(true)
+          setWalletSaved(true);
         },
         { onlyOnce: true }
-      )
+      );
     }
-  }, [wallet, user, walletSaved])
+  }, [wallet, user?.userId, walletSaved]);
 
-  // Toggle sound setting
-  const handleToggleSound = () => {
-    const newSoundState = !soundEnabled
-    setSoundEnabled(newSoundState)
-    localStorage.setItem('soundEnabled', JSON.stringify(newSoundState))
-  }
+  const handleToggleSound = useCallback(() => {
+    const newSoundState = !soundEnabled;
+    setSoundEnabled(newSoundState);
+    localStorage.setItem('soundEnabled', JSON.stringify(newSoundState));
+  }, [soundEnabled]);
 
-  // Fetch all FAQs and split important vs all
-  const fetchFAQs = async () => {
+  const fetchFAQs = useCallback(async () => {
     try {
-      const snapshot = await getDocs(collection(db, 'faq'))
+      const snapshot = await getDocs(collection(db, 'faq'));
       const items = snapshot.docs.map((doc) => ({
         id: doc.id,
         ...doc.data(),
-      }))
-
-      setAllFaqs(items)
-      setImportantFaqs(items.filter((item) => item.important))
+      }));
+      setAllFaqs(items);
+      setImportantFaqs(items.filter((item) => item.important));
     } catch (error) {
-      console.error('Failed to fetch FAQs:', error)
+      console.error('Failed to fetch FAQs:', error);
     } finally {
-      setFaqLoading(false)
+      setFaqLoading(false);
     }
-  }
+  }, []);
 
   useEffect(() => {
-    fetchFAQs()
-  }, [])
+    fetchFAQs();
+  }, [fetchFAQs]);
 
-  // Submit user question to Firestore
-  const handleSubmitQuestion = async (e) => {
-    e.preventDefault()
-    if (!questionInput.trim()) return
+  const handleSubmitQuestion = useCallback(async (e) => {
+    e.preventDefault();
+    if (!questionInput.trim()) return;
 
     try {
       await addDoc(collection(db, 'faqUser'), {
@@ -90,16 +81,39 @@ const Settings = ({ user }) => {
         answer: '',
         userId: user?.userId ?? '',
         timestamp: Date.now(),
-      })
+      });
 
-      setSubmitMsg('✅ Question submitted!')
-      setQuestionInput('')
-      setTimeout(() => setSubmitMsg(''), 3000)
+      setSubmitMsg('✅ Question submitted!');
+      setQuestionInput('');
+      setTimeout(() => setSubmitMsg(''), 3000);
     } catch (error) {
-      console.error('Failed to submit question:', error)
-      setSubmitMsg('❌ Failed to submit. Try again.')
+      console.error('Failed to submit question:', error);
+      setSubmitMsg('❌ Failed to submit. Try again.');
     }
-  }
+  }, [questionInput, user?.userId]);
+
+  const faqList = useMemo(() => (
+    (showAllFAQs ? allFaqs : importantFaqs).map((faq, idx) => (
+      <details
+        key={faq.id || idx}
+        className="settings-faq-item"
+        style={{ marginBottom: '1rem' }}
+      >
+        <summary
+          className="settings-faq-question"
+          style={{ cursor: 'pointer', fontWeight: 'bold' }}
+        >
+          Q: {faq.question}
+        </summary>
+        <p
+          className="settings-faq-answer"
+          style={{ marginLeft: '1rem' }}
+        >
+          A: {faq.answer}
+        </p>
+      </details>
+    ))
+  ), [showAllFAQs, allFaqs, importantFaqs]);
 
   return (
     <div
@@ -107,6 +121,7 @@ const Settings = ({ user }) => {
       style={{ padding: '1rem', textAlign: 'center' }}
     >
       <h2 className="settings-title">Settings</h2>
+
       <div
         style={{ display: 'flex', justifyContent: 'center', margin: '1rem 0' }}
       >
@@ -125,7 +140,6 @@ const Settings = ({ user }) => {
           Sound Effects
         </label>
 
-        {/* Toggle Switch */}
         <label className="switch">
           <input
             type="checkbox"
@@ -141,6 +155,7 @@ const Settings = ({ user }) => {
         style={{ marginTop: '2rem' }}
       >
         <h3 className="settings-faq-title">FAQ & Support</h3>
+
         <div
           className="settings-faq-list"
           style={{ textAlign: 'left', maxWidth: '600px', margin: '0 auto' }}
@@ -149,26 +164,7 @@ const Settings = ({ user }) => {
             <p className="settings-faq-loading">Loading FAQs...</p>
           ) : (
             <>
-              {(showAllFAQs ? allFaqs : importantFaqs).map((faq, idx) => (
-                <details
-                  key={faq.id || idx}
-                  className="settings-faq-item"
-                  style={{ marginBottom: '1rem' }}
-                >
-                  <summary
-                    className="settings-faq-question"
-                    style={{ cursor: 'pointer', fontWeight: 'bold' }}
-                  >
-                    Q: {faq.question}
-                  </summary>
-                  <p
-                    className="settings-faq-answer"
-                    style={{ marginLeft: '1rem' }}
-                  >
-                    A: {faq.answer}
-                  </p>
-                </details>
-              ))}
+              {faqList}
 
               {allFaqs.length > importantFaqs.length && (
                 <button
@@ -211,6 +207,7 @@ const Settings = ({ user }) => {
         >
           <div
             className="settings-support-modal-content"
+            onClick={(e) => e.stopPropagation()}
             style={{
               backgroundColor: '#000',
               padding: '2rem',
@@ -241,6 +238,7 @@ const Settings = ({ user }) => {
             >
               Submit a Question
             </h3>
+
             <form
               className="settings-support-form"
               onSubmit={handleSubmitQuestion}
@@ -277,6 +275,7 @@ const Settings = ({ user }) => {
           </div>
         </div>
       )}
+
       <button
         className="settings-support-button"
         onClick={() => setShowSupportModal(true)}
@@ -297,7 +296,7 @@ const Settings = ({ user }) => {
         Contact Support
       </button>
     </div>
-  )
-}
+  );
+};
 
-export default Settings
+export default Settings;

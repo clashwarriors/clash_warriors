@@ -107,18 +107,18 @@ const Modal = ({ user, isOpen, onClose, cardId, category, collection }) => {
       }
 
       let xpToAdd = 0
-      if (category === 'common') xpToAdd = 25
-      else if (category === 'uncommon') xpToAdd = 50
-      else if (category === 'rare') xpToAdd = 100
-      else if (category === 'mythical') xpToAdd = 200
-      else if (category === 'legendary') xpToAdd = 500
+      if (category === 'common') xpToAdd = 15
+      else if (category === 'uncommon') xpToAdd = 25
+      else if (category === 'rare') xpToAdd = 35
+      else if (category === 'mythical') xpToAdd = 50
+      else if (category === 'legendary') xpToAdd = 75
 
       let pphToAdd = 0
-      if (category === 'common') pphToAdd = 1500
-      else if (category === 'uncommon') pphToAdd = 5000
-      else if (category === 'rare') pphToAdd = 10000
-      else if (category === 'mythical') pphToAdd = 15000
-      else if (category === 'legendary') pphToAdd = 25000
+      if (category === 'common') pphToAdd = 150
+      else if (category === 'uncommon') pphToAdd = 500
+      else if (category === 'rare') pphToAdd = 800
+      else if (category === 'mythical') pphToAdd = 1000
+      else if (category === 'legendary') pphToAdd = 1200
 
       const userCardRef = ref(realtimeDB, `users/${userId}/cards/${cardId}`)
       await set(userCardRef, cardData)

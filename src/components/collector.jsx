@@ -1,27 +1,28 @@
-import React, { useEffect, useState } from 'react'
-import { useLocation } from 'react-router-dom'
-import { realtimeDB } from '../firebase'
-import { ref, get } from 'firebase/database'
-import './style/collector.css'
-import Modal from './Modal'
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import { useLocation } from 'react-router-dom';
+import { realtimeDB } from '../firebase';
+import { ref, get } from 'firebase/database';
+import './style/collector.css';
+import Modal from './Modal';
 
 const CollectorPage = ({ user }) => {
-  const location = useLocation()
-  const { category, collection: collectionName } = location.state || {}
-  const [cards, setCards] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [coins, setCoins] = useState(0)
-  const [selectedCard, setSelectedCard] = useState(null)
-  const userId = user.userId
+  const location = useLocation();
+  const { category, collection: collectionName } = location.state || {};
 
-  // Fetch cards based on category and collection from Realtime Database
+  const [cards, setCards] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [coins, setCoins] = useState(0);
+  const [selectedCard, setSelectedCard] = useState(null);
+
+  const userId = user.userId;
+
   useEffect(() => {
     const fetchCards = async () => {
       if (category && collectionName) {
         try {
-          const cardCollectionPath = `${category}/${collectionName}`
-          const cardsRef = ref(realtimeDB, cardCollectionPath)
-          const snapshot = await get(cardsRef)
+          const cardCollectionPath = `${category}/${collectionName}`;
+          const cardsRef = ref(realtimeDB, cardCollectionPath);
+          const snapshot = await get(cardsRef);
 
           if (snapshot.exists()) {
             const fetchedCards = Object.entries(snapshot.val()).map(
@@ -31,56 +32,68 @@ const CollectorPage = ({ user }) => {
                 collection: collectionName,
                 category: category,
               })
-            )
-
-            setCards(fetchedCards)
-          } else {
-            console.log('No cards found for this category and collection.')
+            );
+            setCards(fetchedCards);
           }
         } catch (error) {
-          console.error('Error fetching cards: ', error)
+          console.error('Error fetching cards:', error);
         } finally {
-          setLoading(false)
+          setLoading(false);
         }
       }
-    }
+    };
 
-    fetchCards()
-  }, [category, collectionName])
+    fetchCards();
+  }, [category, collectionName]);
 
-  // Fetch user data (coins) from Realtime Database
   useEffect(() => {
     const fetchUserData = async () => {
       try {
-        const userRef = ref(realtimeDB, `users/${userId}`)
-        const snapshot = await get(userRef)
+        const userRef = ref(realtimeDB, `users/${userId}`);
+        const snapshot = await get(userRef);
         if (snapshot.exists()) {
-          const data = snapshot.val()
-          setCoins(data.coins)
-        } else {
-          console.log('No user found in Realtime Database')
+          const data = snapshot.val();
+          setCoins(data.coins);
         }
       } catch (error) {
-        console.error('Error fetching user data from Realtime DB:', error)
+        console.error('Error fetching user data:', error);
       }
-    }
+    };
 
-    fetchUserData()
-  }, [userId])
+    fetchUserData();
+  }, [userId]);
 
   const formatNumber = (num) => {
-    if (num >= 1_000_000_000) return `${(num / 1_000_000_000).toFixed(2)}B`
-    if (num >= 1_000_000) return `${(num / 1_000_000).toFixed(2)}M`
-    if (num >= 1_000) return `${(num / 1_000).toFixed(2)}K`
-    return num.toString()
-  }
+    if (num >= 1_000_000_000) return `${(num / 1_000_000_000).toFixed(2)}B`;
+    if (num >= 1_000_000) return `${(num / 1_000_000).toFixed(2)}M`;
+    if (num >= 1_000) return `${(num / 1_000).toFixed(2)}K`;
+    return num.toString();
+  };
 
-  const handleCardClick = (card) => {
-    setSelectedCard(card)
-  }
+  const handleCardClick = useCallback((card) => {
+    setSelectedCard(card);
+  }, []);
+
+  const cardList = useMemo(() => (
+    cards.length > 0 ? (
+      <ul className="collector-container">
+        {cards.map((card) => (
+          <li
+            key={card.id}
+            className="collector-nft-card"
+            onClick={() => handleCardClick(card)}
+          >
+            <img src={card.image} alt={card.name} />
+          </li>
+        ))}
+      </ul>
+    ) : (
+      <p>No cards available</p>
+    )
+  ), [cards, handleCardClick]);
 
   if (loading) {
-    return <p>Loading...</p>
+    return <p>Loading...</p>;
   }
 
   return (
@@ -100,21 +113,7 @@ const CollectorPage = ({ user }) => {
         </div>
       </header>
 
-      {cards.length > 0 ? (
-        <ul className="collector-container">
-          {cards.map((card) => (
-            <li
-              key={card.id} // Using card.id as the unique key
-              className="collector-nft-card"
-              onClick={() => handleCardClick(card)}
-            >
-              <img src={card.image} alt={card.name} />
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <p>No cards available</p>
-      )}
+      {cardList}
 
       {selectedCard && (
         <Modal
@@ -128,7 +127,7 @@ const CollectorPage = ({ user }) => {
         />
       )}
     </div>
-  )
-}
+  );
+};
 
-export default CollectorPage
+export default CollectorPage;
