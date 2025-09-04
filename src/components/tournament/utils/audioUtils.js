@@ -1,17 +1,33 @@
 export const playStoredAudio = (key) => {
-  const soundEnabled = JSON.parse(localStorage.getItem('soundEnabled')) ?? true; // Default to true if not set
-  if (soundEnabled) {
-    const audioData = localStorage.getItem(key);
+  const soundEnabled = JSON.parse(localStorage.getItem('soundEnabled')) ?? true; // Default to true
 
-    if (audioData) {
-      console.log(`Playing stored audio: ${key}`);
-      const audio = new Audio(audioData);
-      audio.loop = false; // Ensure all sounds are non-looping
-      audio.play();
-    } else {
-      console.warn(`No audio found in LocalStorage for key: ${key}`);
+  if (!soundEnabled) {
+    console.log('🔇 Sound is disabled. Skipping audio playback.');
+    return;
+  }
+
+  const audioData = localStorage.getItem(key);
+
+  if (!audioData) {
+    console.warn(`⚠️ No audio found in LocalStorage for key: ${key}`);
+    return;
+  }
+
+  try {
+    const audio = new Audio(audioData);
+    audio.loop = false;
+    const playPromise = audio.play();
+
+    if (playPromise !== undefined) {
+      playPromise
+        .then(() => {
+          console.log(`🔊 Successfully playing audio: ${key}`);
+        })
+        .catch((error) => {
+          console.error(`❌ Failed to play audio "${key}":`, error);
+        });
     }
-  } else {
-    console.log('Sound is disabled. Skipping audio playback.');
+  } catch (error) {
+    console.error(`❌ Error while initializing audio for key "${key}":`, error);
   }
 };

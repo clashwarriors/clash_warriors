@@ -1,215 +1,232 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef, useCallback } from 'react'
 import './style/modal.css'
-import { get, ref, set, update } from 'firebase/database'
-import { realtimeDB } from '../firebase'
+import CachedImage from './Shared/CachedImage'
+import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore'
+import { firestoreDB } from '../firebase'
+import {
+  storeCards,
+  storeUserData,
+  getCards,
+  getUserData,
+} from '../utils/indexedDBService' // Adjust the import based on your actual file
+import { updateOnline } from '../utils/syncService'
+import { getAllCardsByRarity } from '../utils/cardsStorer'
 
-const Modal = ({ user, isOpen, onClose, cardId, category, collection }) => {
-  const [cardDetails, setCardDetails] = useState(null)
-  const [isCardPurchased, setIsCardPurchased] = useState(false)
-  const [flipped, setFlipped] = useState(false)
-  // eslint-disable-next-line no-unused-vars
-  const [userCoins, setUserCoins] = useState(0)
-  const [, setUser] = useState({})
-  const modalContentRef = useRef(null)
+const xpMap = {
+  common: 15,
+  uncommon: 25,
+  rare: 35,
+  mythical: 50,
+  legendary: 75,
+}
 
-  useEffect(() => {
-    const fetchCardDetails = async () => {
-      if (!cardId || !category || !collection) return
+const pphMap = {
+  common: 150,
+  uncommon: 500,
+  rare: 800,
+  mythical: 1000,
+  legendary: 1200,
+}
 
-      try {
-        const cardRef = ref(realtimeDB, `${category}/${collection}/${cardId}`)
-        const cardSnapshot = await get(cardRef)
+const Modal = React.memo(
+  ({ user, isOpen, onClose, cardId, category, collection }) => {
+    const [cardDetails, setCardDetails] = useState(null)
+    const [isCardPurchased, setIsCardPurchased] = useState(false)
+    const modalContentRef = useRef(null)
 
-        if (cardSnapshot.exists()) {
-          const cardData = cardSnapshot.val()
-          setCardDetails(cardData)
-        } else {
-          console.log('Card not found')
+    // Fetch card details from Firestore
+    useEffect(() => {
+      if (!isOpen || !cardId || !category || !collection) return
+
+      const fetchCardDetails = async () => {
+        try {
+          const docRef = doc(firestoreDB, category, collection, 'cards', cardId)
+          const snapshot = await getDoc(docRef)
+          if (snapshot.exists()) {
+            setCardDetails(snapshot.data())
+          }
+        } catch (error) {
+          console.error('❌ Error fetching card details from Firestore:', error)
         }
-      } catch (error) {
-        console.error('Error fetching card details:', error)
       }
-    }
 
-    if (isOpen) {
       fetchCardDetails()
-    }
-  }, [cardId, category, collection, isOpen])
+    }, [isOpen, cardId, category, collection])
 
-  useEffect(() => {
-    if (!isOpen) return
-
-    const handleClickOutside = (e) => {
-      if (
-        modalContentRef.current &&
-        !modalContentRef.current.contains(e.target)
-      ) {
-        onClose()
-      }
-    }
-
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [isOpen, onClose])
-
-  useEffect(() => {
-    const userId = user?.userId
-
-    const checkCardPurchaseStatus = async () => {
-      try {
-        const cardRef = ref(realtimeDB, `users/${userId}/cards/${cardId}`)
-        const snapshot = await get(cardRef)
-
-        if (snapshot.exists()) {
-          setIsCardPurchased(true)
-        } else {
-          setIsCardPurchased(false)
+    // Click outside modal to close
+    useEffect(() => {
+      const handleClickOutside = (e) => {
+        if (
+          modalContentRef.current &&
+          !modalContentRef.current.contains(e.target)
+        ) {
+          onClose()
         }
+      }
+
+      if (isOpen) {
+        document.addEventListener('mousedown', handleClickOutside)
+        return () =>
+          document.removeEventListener('mousedown', handleClickOutside)
+      }
+    }, [isOpen, onClose])
+
+    // Check if card is already purchased from Firestore
+    useEffect(() => {
+      if (!isOpen || !user?.userId || !cardId) return
+
+      const checkPurchase = async () => {
+        try {
+          const userCardRef = doc(
+            firestoreDB,
+            `users/${user.userId}/cards`,
+            cardId
+          )
+          const userCardSnapshot = await getDoc(userCardRef)
+          setIsCardPurchased(userCardSnapshot.exists())
+        } catch (error) {
+          console.error(
+            '❌ Error checking purchase status from Firestore:',
+            error
+          )
+        }
+      }
+
+      checkPurchase()
+    }, [isOpen, user?.userId, cardId])
+
+    const purchaseCard = useCallback(async () => {
+      if (!user?.userId || !cardDetails) return
+
+      try {
+        // Fetch user data from IndexedDB
+        const userData = await getUserData()
+        const currentCoins = userData.coins || 0
+        const xp = userData.xp || 0
+        const pph = userData.pph || 0
+        const price = cardDetails.price || 0
+
+        if (currentCoins < price) {
+          alert('Not enough coins!')
+          return
+        }
+
+        const cardData = {
+          cardId,
+          name: cardDetails.name,
+          description: cardDetails.description,
+          photo: cardDetails.image,
+          stats: cardDetails.stats,
+          price,
+        }
+
+        // 1. Store the card in IndexedDB
+        await storeCards([cardData])
+
+        // 2. Update user data in IndexedDB (coins, xp, pph)
+        const updatedUserData = {
+          ...userData,
+          coins: currentCoins - price,
+          xp: xp + (xpMap[category] || 0),
+          pph: pph + (pphMap[category] || 0),
+        }
+        await storeUserData(updatedUserData)
+
+        setIsCardPurchased(true) // Set state to indicate the card is purchased
+
+        await updateOnline(updatedUserData)
+
+        console.log('Card purchased and stored in IndexedDB:', cardData)
       } catch (error) {
-        console.error('Error checking card purchase status:', error)
-        setIsCardPurchased(false)
+        console.error('❌ Error purchasing card:', error)
       }
-    }
+    }, [user?.userId, cardDetails, cardId, category])
 
-    if (userId && cardId) {
-      checkCardPurchaseStatus()
-    }
-  }, [user, cardId])
+    if (!isOpen) return null
 
-  const purchaseCard = async () => {
-    if (!user?.userId || !cardDetails) return
+    return (
+      <div className="new-modal">
+        <div className="new-modal-content" ref={modalContentRef}>
+          <div className="new-modal-body">
+            <div className={`new-modal-card-frame modal-rarity-${category}`}>
+              <img
+                src={cardDetails?.image || '/fallback.png'}
+                alt={cardDetails?.name || 'Card Image'}
+                className="new-modal-card-image"
+              />
+            </div>
 
-    try {
-      const userId = user.userId
-      const userRef = ref(realtimeDB, `users/${userId}`)
-      const userSnapshot = await get(userRef)
+            <div className="new-modal-card-details">
+              <h2 className="new-modal-title">
+                {cardDetails?.name || 'Loading...'}
+              </h2>
+              <p className="new-modal-description">
+                {cardDetails?.description || 'No description.'}
+              </p>
 
-      if (!userSnapshot.exists()) {
-        console.error('User not found in database.')
-        return
-      }
-
-      const userData = userSnapshot.val()
-      const userCoins = userData.coins || 0
-      const userXp = userData.xp || 0
-      const userPph = userData.pph || 0
-
-      if (userCoins < cardDetails.price) {
-        alert('Not enough coins!')
-        return
-      }
-
-      const cardData = {
-        name: cardDetails.name,
-        description: cardDetails.description,
-        photo: cardDetails.image,
-        stats: cardDetails.stats,
-      }
-
-      let xpToAdd = 0
-      if (category === 'common') xpToAdd = 15
-      else if (category === 'uncommon') xpToAdd = 25
-      else if (category === 'rare') xpToAdd = 35
-      else if (category === 'mythical') xpToAdd = 50
-      else if (category === 'legendary') xpToAdd = 75
-
-      let pphToAdd = 0
-      if (category === 'common') pphToAdd = 150
-      else if (category === 'uncommon') pphToAdd = 500
-      else if (category === 'rare') pphToAdd = 800
-      else if (category === 'mythical') pphToAdd = 1000
-      else if (category === 'legendary') pphToAdd = 1200
-
-      const userCardRef = ref(realtimeDB, `users/${userId}/cards/${cardId}`)
-      await set(userCardRef, cardData)
-
-      const newBalance = userCoins - cardDetails.price
-      const newXp = userXp + xpToAdd
-      const newPph = userPph + pphToAdd
-
-      await update(userRef, { coins: newBalance, xp: newXp, pph: newPph })
-
-      // ✅ Update UI instantly
-      setIsCardPurchased(true)
-      setUserCoins(newBalance)
-      setUser((prevUser) => ({
-        ...prevUser,
-        coins: newBalance,
-        xp: newXp,
-        pph: newPph,
-      }))
-
-      console.log(`Card "${cardDetails.name}" purchased successfully!`)
-    } catch (error) {
-      console.error('Error purchasing card:', error)
-    }
-  }
-
-  if (!isOpen) return null
-
-  return (
-    <div className="modal">
-      <div className="modal-content" ref={modalContentRef}>
-        <span className="close-btn" onClick={onClose}>
-          &times;
-        </span>
-
-        <div className="modal-body">
-          {/* Flip Card Container */}
-          <div className="flip-card" onClick={() => setFlipped(!flipped)}>
-            <div className={`flip-card-inner ${flipped ? 'flipped' : ''}`}>
-              {/* Front of the card */}
-              <div className="flip-card-front">
-                <img
-                  src={cardDetails?.image}
-                  alt={cardDetails?.name}
-                  className="card-image"
-                />
+              <div className="new-modal-stats-row">
+                <div>
+                  <CachedImage src="/new/collectionpage/stats/attack.png" />{' '}
+                  {cardDetails?.stats?.attack ?? '-'}
+                </div>
+                <div>
+                  <CachedImage src="/new/collectionpage/stats/armour.png" />{' '}
+                  {cardDetails?.stats?.armor ?? '-'}
+                </div>
+                <div>
+                  <CachedImage src="/new/collectionpage/stats/vitality.png" />{' '}
+                  {cardDetails?.stats?.vitality ?? '-'}
+                </div>
               </div>
 
-              {/* Back of the card */}
-              <div className="flip-card-back">
-                <div className="card-details">
-                  <h2>{cardDetails?.name}</h2>
-                  <p>{cardDetails?.description}</p>
-                  <div className="card-stats">
-                    <p>
-                      <strong>Armor:</strong> {cardDetails?.stats?.armor}
-                    </p>
-                    <p>
-                      <strong>Agility:</strong> {cardDetails?.stats?.agility}
-                    </p>
-                    <p>
-                      <strong>Ability:</strong> {cardDetails?.stats?.attack}
-                    </p>
-                    <p>
-                      <strong>Intelligence:</strong>{' '}
-                      {cardDetails?.stats?.intelligence}
-                    </p>
-                    <p>
-                      <strong>Vitality:</strong> {cardDetails?.stats?.vitality}
-                    </p>
-                    <p>
-                      <strong>Powers:</strong> {cardDetails?.stats?.powers}
-                    </p>
-                  </div>
+              <div className="new-modal-stats-row">
+                <div>
+                  <CachedImage src="/new/collectionpage/stats/agility.png" />{' '}
+                  {cardDetails?.stats?.agility ?? '-'}
+                </div>
+                <div>
+                  <CachedImage src="/new/collectionpage/stats/intelligence.png" />{' '}
+                  {cardDetails?.stats?.intelligence ?? '-'}
+                </div>
+                <div>
+                  <CachedImage src="/new/collectionpage/stats/power.png" />{' '}
+                  {cardDetails?.stats?.powers ?? '-'}
+                </div>
+              </div>
+
+              <div className="new-modal-price-buy">
+                <div className="price-display">
+                  <CachedImage
+                    src="/new/coins.png"
+                    alt="Coins"
+                    style={{
+                      width: '20px',
+                      height: '20px',
+                      marginRight: '5px',
+                    }}
+                  />{' '}
+                  {cardDetails?.price ?? 0}
+                </div>
+
+                {!isCardPurchased && (
                   <button
-                    className="purchase-btn"
-                    disabled={isCardPurchased}
+                    className="new-modal-purchase-btn"
                     onClick={purchaseCard}
                   >
-                    {isCardPurchased
-                      ? 'Card Purchased!'
-                      : `Purchase for ${cardDetails?.price} Coins`}
+                    <CachedImage
+                      src="/new/collectionpage/stats/buy-button.png"
+                      alt="BUY"
+                      className="buy-image"
+                    />
                   </button>
-                </div>
+                )}
               </div>
             </div>
           </div>
         </div>
       </div>
-    </div>
-  )
-}
+    )
+  }
+)
 
 export default Modal

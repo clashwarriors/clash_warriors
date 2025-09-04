@@ -1,7 +1,6 @@
 import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { ref, get, update, onValue } from 'firebase/database';
 import { realtimeDB } from '../../firebase';
-import ArcReactor from './Reactor';
 import './style/taptoearn.style.css';
 import { triggerHapticFeedback } from '../tournament/utils/haptic';
 
@@ -166,8 +165,6 @@ const TapToEarn = ({ user }) => {
         <img src="/assets/crypto-coin.png" alt="Crypto Coin" className="tte-coin-icon" loading="lazy" />
         {coins}
       </p>
-
-      <ArcReactor user={user} onClick={handleTap} />
 
       <div className="tte-tapped-container">
         <p className="taptoearn-tapped">{tapped}/{taps}</p>

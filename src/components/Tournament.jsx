@@ -12,6 +12,10 @@ import {
   loadFramesIntoMemory,
 } from './tournament/utils/indexedDBHelper'
 import { triggerHapticFeedback } from './tournament/utils/haptic'
+import { createOfflineMatch } from './tournament/gameUtils/matchMaker'
+import CachedImage from './Shared/CachedImage'
+import { getAllCardsByRarity } from '../utils/cardsStorer'
+import CustomAlert from './tournament/gameUtils//CustomAlert'
 
 const Tournament = ({ user }) => {
   // eslint-disable-next-line no-unused-vars
@@ -29,13 +33,14 @@ const Tournament = ({ user }) => {
   const [framesLoaded, setFramesLoaded] = useState(false)
   const [progress, setProgress] = useState(0)
   const [framesExist, setFramesExist] = useState(false)
-  const [onlineCount, setOnlineCount] = useState(0)
+  // const [onlineCount, setOnlineCount] = useState(0)
   const [showDeckErrorModal, setShowDeckErrorModal] = useState(false)
   const [tutorialStep, setTutorialStep] = useState(0)
   const [showTutorial, setShowTutorial] = useState(false)
   // const [soundEnabled, setSoundEnabled] = useState(
   //   JSON.parse(localStorage.getItem('soundEnabled')) ?? true
   // )
+  const [alertMessage, setAlertMessage] = useState(null)
 
   const navigate = useNavigate()
 
@@ -94,79 +99,6 @@ const Tournament = ({ user }) => {
 
     return () => unsubscribe()
   }, [user, navigate, hasNavigated])
-
-  const handleMatchmaking = async (isDailyBattle = false) => {
-    triggerHapticFeedback()
-    try {
-      // ✅ Fetch user details from Firebase
-      const userRef = ref(realtimeDB, `users/${user.userId}`)
-      const userSnapshot = await get(userRef)
-
-      if (!userSnapshot.exists()) {
-        console.log('❌ User not found in Firebase.')
-        return
-      }
-
-      const userDetails = userSnapshot.val()
-
-      // ✅ Fetch user's cards from Firebase
-      const cardsRef = ref(realtimeDB, `users/${user.userId}/cards`)
-      const cardsSnapshot = await get(cardsRef)
-
-      if (!cardsSnapshot.exists()) {
-        console.log('❌ No cards found.')
-        return
-      }
-
-      const allCards = cardsSnapshot.val()
-      const defaultDeck = Object.values(allCards).filter(
-        (card) => card.defaultDeck === true
-      )
-
-      if (defaultDeck.length < 7) {
-        setShowDeckErrorModal(true)
-        return
-      }
-
-      // ✅ Add to matchmaking queue
-      const matchmakingRef = ref(realtimeDB, `matchmakingQueue/${user.userId}`)
-      await set(matchmakingRef, {
-        inQueue: true,
-        totalSynergy: userDetails?.totalSynergy || 0, // Optional to keep for now
-        rating: userDetails?.rating || 1000,
-        isDailyBattle,
-      })
-
-      if (isDailyBattle) {
-        const todayDate = new Date().toISOString().split('T')[0]
-        const dailyBattleRef = ref(
-          realtimeDB,
-          `users/${user.userId}/dailyBattleDate`
-        )
-        await set(dailyBattleRef, todayDate)
-      }
-
-      setIsMatchmaking(true)
-      setIsMatchmakingModalOpen(true)
-      console.log(
-        `✅ Matchmaking started! (${isDailyBattle ? 'Daily Battle' : 'Regular Battle'})`
-      )
-    } catch (error) {
-      console.error('❌ Error during matchmaking:', error)
-    }
-  }
-
-  const handleCancelMatchmaking = () => {
-    setIsMatchmaking(false)
-    setIsMatchmakingModalOpen(false)
-    triggerHapticFeedback()
-
-    const matchmakingRef = ref(realtimeDB, `matchmakingQueue/${user.userId}`)
-    remove(matchmakingRef).catch((error) => {
-      console.error('Error removing from matchmaking queue:', error)
-      setIsMatchmaking(true)
-    })
-  }
 
   useEffect(() => {
     if (!user?.userId) return
@@ -322,26 +254,6 @@ const Tournament = ({ user }) => {
   }
 
   useEffect(() => {
-    const usersRef = ref(realtimeDB, 'users')
-
-    const unsubscribe = onValue(usersRef, (snapshot) => {
-      if (!snapshot.exists()) {
-        setOnlineCount(0)
-        return
-      }
-
-      const users = snapshot.val()
-      const onlineUsers = Object.values(users).filter(
-        (user) => user.status === 'online'
-      )
-
-      setOnlineCount(onlineUsers.length)
-    })
-
-    return () => unsubscribe()
-  }, [])
-
-  useEffect(() => {
     const tutorialDone = localStorage.getItem('TournamentTutorial')
     if (!tutorialDone) {
       setShowTutorial(true)
@@ -363,150 +275,132 @@ const Tournament = ({ user }) => {
     navigate('/builddeck')
   }
 
-  // const handleToggleSound = () => {
-  //   const newSoundState = !soundEnabled
-  //   setSoundEnabled(newSoundState)
-  //   localStorage.setItem('soundEnabled', JSON.stringify(newSoundState)) // Save the preference to localStorage
+  // const handlePlayNow = async () => {
+  //   const match = await createOfflineMatch(user)
+  //   navigate(`/battle/${match.matchID}`)
   // }
+
+  const handlePlayNow = async () => {
+    try {
+      const match = await createOfflineMatch(user)
+      navigate(`/battle/${match.matchID}`)
+    } catch (error) {
+      // Show alert if deck is incomplete
+      setAlertMessage(error.message)
+    }
+  }
 
   if (error) return <h2></h2>
 
   return (
-    <div
-      className={`tournamentHome-container ${showTutorial ? 'tutorial-active' : ''}`}
-    >
-      <div className="tournamentHome-header">
-        <button className="tournamentHome-back-button" onClick={handleBack}>
-          Back
-        </button>
+    <div className={`tournamentHome-container`}>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'flex-start',
+          width: '60%',
+          position: 'relative',
+          marginTop: '30px',
+        }}
+      >
+        <CachedImage
+          src="/new/tournament/tournamentLogo.png"
+          alt="Tournament Header"
+          style={{
+            display: 'block',
+            maxWidth: '100%',
+            height: 'auto',
+            filter: 'brightness(1.3)',
+          }}
+        />
       </div>
 
-      {showTutorial && <div className="tutorial-overlay"></div>}
-
-      {/* Step 1: Highlight Users Online */}
-      <h2
-        className={`users-online ${showTutorial && tutorialStep === 0 ? 'highlight' : ''}`}
-      >
-        {onlineCount} <br /> Users Online
-      </h2>
-      {showTutorial && tutorialStep === 0 && (
-        <p className="tutorial-text">This shows how many users are online.</p>
-      )}
-
       <div className="tournamentHome-matchmaking-container">
-        {/* Step 2: Highlight Daily Battle */}
-        {canStartDailyBattle && (
-          <button
-            className={`tournamentHome-main-button ${showTutorial && tutorialStep === 1 ? 'highlight' : ''}`}
-            onClick={() => handleMatchmaking(true)}
-            disabled={isMatchmaking || loading}
-          >
-            Daily Battle
-          </button>
-        )}
-        {showTutorial && tutorialStep === 1 && (
-          <p className="tutorial-text">
-            Click here to start your daily battle.
-          </p>
-        )}
+        <CachedImage
+          src="/new/tournament/startbattleBtn.png"
+          onClick={handlePlayNow}
+          alt="Start Battle"
+          style={{ background: 'transparent' }}
+        />
 
-        {/* Step 3: Highlight Start Battle */}
-        <button
-          className={`tournamentHome-main-button ${showTutorial && tutorialStep === 2 ? 'highlight' : ''}`}
-          onClick={() => handleMatchmaking(false)}
-          disabled={isMatchmaking || loading}
-        >
-          Start Battle
-        </button>
-        {showTutorial && tutorialStep === 2 && (
-          <p className="tutorial-text">Click here for a regular battle.</p>
-        )}
+        <Link to="/leaderboard">
+          <CachedImage
+            src="/new/tournament/leaderboardBtn.png"
+            alt="Leaderboard"
+          />
+        </Link>
 
-        {/* Step 4: Highlight My Deck */}
-        <button
-          className={`tournamentHome-main-button ${showTutorial && tutorialStep === 3 ? 'highlight' : ''}`}
+        <CachedImage
+          src="/new/tournament/mydeckBtn.png"
           onClick={handleOpenModal}
-        >
-          My Deck
-        </button>
-        {showTutorial && tutorialStep === 3 && (
-          <p className="tutorial-text">Click here to manage your deck.</p>
-        )}
+          alt="My Deck"
+        />
 
-        {showTutorial && (
-          <div className="tutorial-navigation">
-            <button onClick={nextStep} className="tour-tt-next-btn">
-              {tutorialStep < 5 ? 'Next →' : 'Finish'}
-            </button>
-          </div>
-        )}
+        <CachedImage
+          src="/new/tournament/backBtn.png"
+          onClick={handleBack}
+          alt="Back Button"
+        />
 
         {showDeckErrorModal && (
-          <div className="deck-error-modal-overlay">
-            <div className="deck-error-modal-content">
-              <h3>Not Enough Cards</h3>
-              <p>You need at least 7 cards in your deck to start a battle.</p>
-              <button onClick={noCardsError}>Build Deck</button>
+          <div
+            className="deck-error-modal-overlay"
+            onClick={() => setShowDeckErrorModal(false)} // ⬅️ close when background clicked
+          >
+            <div
+              className="deck-error-modal-content"
+              onClick={(e) => e.stopPropagation()} // ⛔ prevent closing when modal content is clicked
+            >
+              <CachedImage
+                onClick={noCardsError}
+                src="/new/tournament/builddeckBtn.png"
+                alt="OK"
+                className="deck-error-modal-button"
+              />
             </div>
           </div>
         )}
 
         {!framesExist && (
           <div>
-            <button
+            <CachedImage
+              src="/new/tournament/downloadBtn.png"
+              alt="Refresh"
+              style={{ display: 'block' }}
               onClick={handleDownload}
-              style={{ padding: '10px', fontSize: '16px' }}
-              className={`tournamentHome-main-button ${showTutorial && tutorialStep === 4 ? 'highlight' : ''}`}
-            >
-              {'Download Assets'}
-            </button>
-            {showTutorial && tutorialStep === 4 && (
-              <p className="tutorial-text">
-                Click Here to Download Your Game Assets
-              </p>
-            )}
-            <p>📥 {Math.round((progress / 390) * 100)}% Downloaded</p>
-            {showTutorial && tutorialStep === 5 && (
-              <p className="tutorial-text">
-                This shows the download progress of your game assets. Make sure
-                to complete it for a smooth experience!
-              </p>
-            )}
+            />
+
+            <div>
+              <p>📥 {Math.round((progress / 390) * 100)}% Downloaded</p>
+            </div>
           </div>
         )}
       </div>
-
-      {/* <div className="sound-toggle-container">
-        <label className="sound-toggle-label">
-          Sound Effects
-          <input
-            type="checkbox"
-            checked={soundEnabled}
-            onChange={handleToggleSound}
-            className="sound-toggle-input"
-          />
-          <span className="sound-toggle-slider"></span>
-        </label>
-      </div> */}
 
       <DefaultDeckModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         user={user}
       />
+
       {isMatchmakingModalOpen && (
         <div className="tournamentHome-modal">
           <div className="tournamentHome-modal-content">
-            <h2>🔍 Searching for a Match...</h2>
-            <p>Please wait while we find an opponent.</p>
-            <button
+            <CachedImage
+              src="/new/tournament/cancel2.png"
               className="tournamentHome-cancel-button"
               onClick={handleCancelMatchmaking}
-            >
-              ❌ Cancel Matchmaking
-            </button>
+            />
           </div>
         </div>
+      )}
+
+      {alertMessage && (
+        <CustomAlert
+          message={alertMessage}
+          onClose={() => setAlertMessage(null)}
+        />
       )}
     </div>
   )

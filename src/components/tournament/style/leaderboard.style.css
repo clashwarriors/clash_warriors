@@ -1,318 +1,241 @@
-/* Root Variables for Theme */
-:root {
-  --neon-red: #ff003c;
-  --neon-blue: #00aaff;
-  --neon-pink: #ff00ff;
-  --neon-yellow: #ffd700;
-  --neon-green: #00ff99;
-  --holo-gradient: linear-gradient(
-    90deg,
-    var(--neon-red),
-    var(--neon-blue),
-    var(--neon-pink)
-  );
-  --holo-glow: 0px 0px 15px rgba(255, 0, 255, 0.8);
-  --neon-glow: 0px 0px 12px rgba(0, 255, 255, 0.8);
-}
-
 /* Leaderboard Container */
 .leaderboard-container {
-  width: 100%;
+  width: 100vw;
   height: 100vh;
   margin: 0 auto;
   text-align: center;
-  border: 2px solid rgba(255, 0, 0, 0.5);
-  box-shadow: 0px 0px 25px var(--neon-red);
-  backdrop-filter: blur(10px);
   position: relative;
   animation: fadeIn 1s ease-in-out;
   overflow-y: auto;
   scrollbar-width: 0px;
   scrollbar-color: var(--neon-red) rgba(0, 0, 0, 0.3);
-  background: linear-gradient(135deg, rgba(10, 10, 40, 0.95), rgba(70, 10, 10, 0.95));
+  background: url('/new/leaderboard/leaderboardbg.png') no-repeat center center
+    fixed;
   background-size: cover;
   background-blend-mode: overlay;
+  overflow-x: hidden;
+  padding-top: 13vh;
 }
 
-/* Animated Grid Overlay */
-.leaderboard-container::after {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background-image: 
-    linear-gradient(rgba(255, 0, 0, 0.2) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(0, 255, 255, 0.2) 1px, transparent 1px);
-  background-size: 35px 35px;
-  opacity: 0.25;
-  animation: neonGridMove 6s linear infinite;
-  z-index: -1;
-}
-
-/* Glow Border Effect */
-.leaderboard-container::before {
-  content: "";
-  position: absolute;
-  top: -5px;
-  left: -5px;
-  right: -5px;
-  bottom: -5px;
-  border: 3px solid rgba(255, 0, 0, 0.6);
-  filter: drop-shadow(0 0 15px var(--neon-red));
-  z-index: -1;
-}
-
-/* Animate the grid for a digital futuristic effect */
-@keyframes neonGridMove {
-  from {
-    background-position: 0 0;
-  }
-  to {
-    background-position: 35px 35px;
-  }
-}
-
-/* Spinner during loading */
-.leaderboard-loading-spinner {
-  width: 50px;
-  height: 50px;
-  border: 5px solid rgba(255, 255, 255, 0.3);
-  border-top-color: #fff;
-  border-radius: 50%;
-  animation: spin 1s ease infinite;
-  margin: 100px auto;
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-
-/* Cyberpunk Text */
-.leaderboard-title {
-  font-family: 'Orbitron', sans-serif;
-  font-size: 26px;
-  text-transform: uppercase;
-  color: var(--neon-red);
-  text-shadow: 0 0 15px var(--neon-red);
-  background: var(--holo-gradient);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  animation: glowText 2s infinite alternate;
-  margin-bottom: 15px;
-}
-
-/* Top 3 Section */
+/* Top 3 Users Section */
 .leaderboard-top3 {
   display: flex;
   justify-content: center;
   align-items: flex-end;
-  gap: 30px;
-  margin-bottom: 20px;
-  margin-top: 50px;
+  margin-bottom: 2rem;
+  margin-top: 5vh;
+  gap: 2rem;
 }
 
-/* Top 3 Players */
+/* Individual Rank Containers */
 .top3 {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
   position: relative;
-  text-align: center;
-  width: 90px;
-  transition: transform 0.3s ease-in-out;
-  border-radius: 10px;
-  padding: 12px;
-  background: linear-gradient(
-    135deg,
-    rgba(255, 0, 0, 0.2),
-    rgba(0, 0, 255, 0.2)
-  );
-  box-shadow: var(--holo-glow);
+  display: flex;
+  justify-content: center;
+  align-items: center;
 }
 
-/* Rank Effects */
+/* Frame Wrapper */
+.top3-frame-wrapper {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+/* Avatar Image Style */
+.top3-avatar img {
+  width: 80px;  /* Slightly bigger for better fit */
+  height: 100px;  /* Slightly bigger for better fit */
+  object-fit: cover;
+  z-index: 1;  /* Ensure image is in front of the frame */
+  border-radius: 10%;  /* Make the photo round */
+}
+
+/* Rank Frames */
+.top1-frame,
+.top2-frame,
+.top3-frame {
+  position: absolute;
+  top: -15px;
+  left: -15px;
+  height: 140px;  /* Adjusted to fit avatars */
+  width: 130px;  /* Adjusted to fit avatars */
+  z-index: 0;  /* Behind the avatar image */
+  pointer-events: none;
+}
+
+/* Specific Rank Frame Styles */
+.top1-frame {
+  height: 170px;  /* Slightly larger for Rank 1 */
+  width: 120px;  /* Slightly larger for Rank 1 */
+  top: -60px;
+  left: -20px;
+  filter: drop-shadow(0px 0px 10px #ffa600);  /* Glow effect */
+}
+
+.top2-frame {
+  height: 150px;  /* Slightly larger for Rank 2 */
+  width: 100px;  /* Slightly larger for Rank 2 */
+  top: -35px;
+  left: -1px;
+  filter: drop-shadow(0px 0px 10px #777777);  /* Glow effect */
+
+}
+
+.top3-frame {
+  height: 140px;  /* Slightly smaller for Rank 3 */
+  width: 90px;  /* Slightly smaller for Rank 3 */
+  top: -30px;
+  left: -0px;
+  filter: drop-shadow(0px 0px 10px #3d2100);  /* Glow effect */
+
+}
+
+/* Rank-specific Avatar Positioning */
 .top3-1 {
-  transform: translateY(-15px) scale(1.3);
-  border: 2px solid var(--neon-red);
+  z-index: 3; /* Top 1 should be in front */
+  top: -40px;
+  
 }
+
 .top3-2 {
-  transform: translateY(5px) scale(1.1);
-  border: 2px solid var(--neon-blue);
+  z-index: 2; /* Rank 2 is slightly behind */
+  top: -20px;
+
 }
+
 .top3-3 {
-  transform: translateY(5px) scale(1);
-  border: 2px solid var(--neon-yellow);
+  z-index: 1; /* Rank 3 is behind */
+  top: -20px;
+
 }
 
-/* Avatar Styles */
-.top3-avatar {
-  width: 70px;
-  height: 70px;
-  border-radius: 50%;
-  background-size: cover;
-  background-position: center;
-  border: 3px solid #ffffff;
-  box-shadow: var(--neon-glow);
-  margin-bottom: 5px;
-}
-
-/* Leaderboard Table */
+/* Leaderboard Table Styles */
 .leaderboard-table {
   width: 100%;
   border-collapse: collapse;
-  margin-top: 15px;
-  background: rgba(0, 0, 0, 0.3);
-  border-radius: 10px;
-  backdrop-filter: blur(5px);
+  margin-top: 2rem;
 }
 
-/* Table Header */
+/* Table Header Styles */
 .leaderboard-thead {
-  background: var(--holo-gradient);
+  background-color: rgba(0, 0, 0, 0.5);
+}
+
+.leaderboard-header-row {
+  text-align: left;
+  color: #fff;
+}
+
+.leaderboard-th {
+  font-size: 1rem;
   text-transform: uppercase;
 }
 
-.leaderboard-header-row th {
-  padding: 12px;
-  font-size: 14px;
-  font-weight: bold;
-  color: #ffffff;
-  text-shadow: var(--holo-glow);
-}
-
-/* Table Rows */
+/* Row Styles */
 .leaderboard-row {
-  transition: all 0.3s ease-in-out;
-  opacity: 1;
-  transform: translateY(0);
-  font-size: 16px;
-  padding: 12px;
-  height: 45px;
+  display: flex; /* Use flexbox to align elements horizontally */
+  align-items: center; /* Center elements vertically */
+  justify-content: space-between; /* Ensure the items are spaced out */
+  height: 80px; /* Set a fixed height for all rows */
+  padding-left: 2rem; /* Add padding to the left */
+  margin-bottom: 1rem; /* Add space between rows */
 }
 
-/* Alternating Row Colors */
-.leaderboard-row:nth-child(even) {
-  background: rgba(255, 255, 255, 0.05);
-}
 
-.leaderboard-row:hover {
-  box-shadow: var(--holo-glow);
-  transform: scale(1.02);
-}
-
-/* Glowing Highlight for Logged-in User */
-.leaderboard-highlight {
-  background: rgba(255, 215, 0, 0.3) !important;
+/* Rank Cell Styles */
+.leaderboard-rank {
+  background-image: url('/new/leaderboard/OtherRankNumber.png');
+  background-repeat: no-repeat;
+  background-size: 120px 40px; /* Small rectangle for Rank */
+  background-position: center;
+  text-align: center;
+  color: #fff;
+  font-size:0.87rem;
   font-weight: bold;
-  text-shadow: var(--holo-glow);
+  min-width: 100px;
+  height: 50px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding-right: 1rem;
+  margin-left: -30px;
 }
 
-/* Glow Text Animation */
-@keyframes glowText {
-  from {
-    text-shadow: 0px 0px 10px var(--neon-red);
-  }
-  to {
-    text-shadow: 0px 0px 20px var(--neon-blue);
-  }
+/* Profile Photo Cell Styles */
+.leaderboard-photo {
+  position: relative; /* To position the background image and profile image on top of each other */
+  background-image: url('/new/leaderboard/OtherRankDP.png');
+  background-repeat: no-repeat;
+  background-size: 80px 80px;
+  background-position: center;
+  text-align: center;
+  min-width: 90px; /* Decreased size */
+  height: 9cap; /* Decreased size */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-left: -50px;
 }
 
-.leaderboard-container::-webkit-scrollbar {
-  display: none;
-}
-/* Hide scrollbar for Firefox */
-.leaderboard-container {
-  scrollbar-width: none; /* Firefox */
-  -ms-overflow-style: none; /* Internet Explorer 10+ */
-}
-
-@media (max-width: 400px) {
-  .leaderboard-container {
-    width: 100%;
-    max-width: 100%; /* Full width for small screens */
-    height: 100vh;
-    border-radius: 0; /* Remove rounded corners for full-screen effect */
-  }
-
-  .leaderboard-title {
-    font-size: 20px; /* Reduce title size */
-  }
-
-  .leaderboard-top3 {
-    flex-direction: row; /* Stack top 3 vertically */
-    align-items: center;
-    gap: 30px;
-    margin-top: 30px;
-  }
-
-  .top3 {
-    width: 70px; /* Smaller player cards */
-    padding: 8px;
-    border-radius: 8px;
-  }
-
-  .top3-avatar {
-    width: 45px;
-    height: 45px;
-  }
-
-  .leaderboard-table {
-    margin-top: 10px;
-  }
-
-  .leaderboard-header-row th {
-    padding: 8px;
-    font-size: 12px; /* Reduce text size */
-  }
-
-  .leaderboard-row {
-    font-size: 14px;
-    padding: 8px;
-    height: 35px;
-  }
-  
-  /* Hide Scrollbar */
-  .leaderboard-container::-webkit-scrollbar {
-    display: none;
-  }
-  .leaderboard-container {
-    scrollbar-width: none;
-    -ms-overflow-style: none;
-  }
+/* Avatar Image Style */
+.leaderboard-avatar {
+  position: absolute; /* This positions the avatar image on top of the background image */
+  width: 50px; /* Decreased size */
+  height: 50px; /* Decreased size */
+  object-fit: cover; /* Make sure the profile photo fits the container */
+  border-radius: 50%; /* Make the photo round */
+  z-index: 2; /* Ensure the profile photo is above the background */
 }
 
+
+/* Username Cell Styles */
+.leaderboard-username {
+  background-image: url('/new/leaderboard/OtherRankNamePlate.png');
+  background-repeat: no-repeat;
+  background-size: 280px 60px; /* Rectangular background for the name plate */
+  background-position: right;
+  text-align: center;
+  color: #fff;
+  font-size: 0.9rem;
+  font-weight: bold;
+  min-width: 200px;
+  height: 60px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 0.5rem;
+  margin-left: -50px;
+}
+
+/* Points Cell Styles */
+.leaderboard-points {
+  background-image: url('/new/leaderboard/OtherRankPoints.png');
+  background-repeat: no-repeat;
+  background-size: 100px 40px; /* Small rectangle for Rank */
+  background-position: center;
+  text-align: center;
+  color: #fff;
+  font-size: 0.8rem;
+  font-weight: bold;
+  min-width: 120px;
+  height: 50px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 0.5rem;
+  margin-left: -50px;
+}
+
+/* Sticky Row Styles */
 .leaderboard-sticky {
   position: sticky;
+  background-color: rgba(0, 0, 0, 0.5);
+  color: #fff;
+  top: 0;
+  z-index: 2;
+  font-weight: bold;
   bottom: 0;
-  
-  /* Premium Neon Gradient */
-  background: linear-gradient(135deg, #8100cc, #ff00ff, #00aaff) !important;
-  background-size: 300% 300%; /* Stretch gradient for shimmer effect */
-  animation: gradientShimmer 6s ease-in-out infinite; /* Adding shimmer animation */
-  
-  color: #ffffff; /* White text to ensure readability */
-  z-index: 10;
-  padding: 10px 0; /* Optional padding for better row spacing */
-  
-  /* Glowing Effect */
-  box-shadow: 0px 0px 15px rgba(255, 255, 255, 0.8); /* Premium glowing effect */
-}
-
-/* Shimmer Gradient Animation */
-@keyframes gradientShimmer {
-  0% {
-    background-position: 0% 50%;
-  }
-  50% {
-    background-position: 100% 50%;
-  }
-  100% {
-    background-position: 0% 50%;
-  }
 }
 

@@ -9,7 +9,21 @@
   -webkit-touch-callout: none; /* Prevent long press menu on iOS */
 }
 body {
-  font-family: 'Oxanium', sans-serif;
+  font-family: 'MedievalSharpBold', sans-serif;
   color: white;
   background-color: #000000;
+}
+
+@font-face {
+  font-family: 'MedievalSharpBold';
+  src: url('/fonts/medieval_sharp/MedievalSharp-Bold.ttf') format('truetype');
+  font-weight: bold;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'MedievalSharpBook';
+  src: url('/fonts/medieval_sharp/MedievalSharp-Book.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
 }

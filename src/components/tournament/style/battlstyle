@@ -1,0 +1,700 @@
+.battlePage-container {
+  width: 100vw;
+  height: 100vh;
+  background: url('/new/battle/battleBg1.png');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-color: #000000;
+  color: white;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* Header containing avatars, synergy, and timer */
+.battle-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  max-width: 400px;
+  padding: 30px;
+  position: fixed;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+/* Player avatar container */
+.player-container {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.player-info {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+  overflow: hidden;
+  width: 60px;
+  height: 60px;
+  margin-top: 100px;
+  margin-left: 5px;
+  margin-right: 5px;
+}
+
+.player-avatar {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Synergy Box */
+.synergy-box {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 80px;
+  padding: 5px;
+  border-radius: 8px;
+  text-align: center;
+  font-size: 12px;
+}
+
+.synergy-value {
+  color: white;
+  font-weight: bold;
+}
+
+/* Left & Right alignment for players */
+.battle-left {
+  display: flex;
+  align-items: center;
+  margin-left: 5px;
+  gap: 5px;
+}
+
+.battle-right {
+  display: flex;
+  align-items: center;
+  margin-right: 5px;
+  gap: 5px;
+}
+
+/* Centered Battle Timer */
+.battle-timer {
+  flex-grow: 1;
+  text-align: center;
+  font-size: 14px;
+  font-weight: bold;
+  color: white;
+  position: relative;
+  padding: 8px 15px;
+  display: inline-block;
+}
+
+/* Hexagon bottom border */
+.battle-timer::after {
+  content: '';
+  position: absolute;
+  bottom: -2px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 12px solid transparent;
+  border-right: 12px solid transparent;
+  border-top: 8px solid white;
+}
+
+/* Cards Container at Bottom */
+.cards-container {
+  position: fixed;
+  bottom: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 95%;
+  max-width: 400px;
+  display: flex;
+  justify-content: center;
+  padding: 8px;
+  border-radius: 10px;
+  flex-wrap: wrap;
+}
+
+/* Buttons Section Above Cards */
+.buttons-container {
+  position: fixed;
+  bottom: 75px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: 400px;
+  display: flex;
+  justify-content: center;
+  padding: 8px;
+}
+
+/* Responsive Adjustments */
+@media (max-width: 400px) {
+  .battle-header {
+    width: 100%;
+    padding: 5px;
+    flex-wrap: wrap;
+  }
+
+  .player-info {
+    width: 60px;
+    height: 60px;
+  }
+
+  .synergy-box {
+    font-size: 20px;
+    padding: 4px 6px;
+    min-width: 50px;
+  }
+
+  .battle-timer {
+    font-size: 20px;
+  }
+
+  .cards-container {
+    width: 90%;
+  }
+
+  .buttons-container {
+    bottom: 65px;
+  }
+}
+
+.selected-card-container {
+  display: flex;
+  justify-content: center; /* Ensures items stay in the center */
+  align-items: center;
+  position: fixed;
+  top: 40%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: auto; /* Allows cards to stay together */
+  max-width: 90%; /* Responsive width */
+  gap: 15px; /* Space between cards */
+}
+
+/* Card Styles */
+.selected-card-area {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid white;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.selected-card-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover; /* Ensures the image fills the box */
+  border-radius: 5px;
+}
+
+/* Left and Right Card Colors */
+.left-card {
+  background-color: rgba(255, 50, 50, 0.3); /* Red tint */
+}
+
+.right-card {
+  background-color: rgba(0, 150, 255, 0.3); /* Blue tint */
+}
+
+/* VS Text */
+.vs-text {
+  font-size: 18px;
+  font-weight: bold;
+  color: white;
+  text-align: center;
+  min-width: 40px; /* Keeps "VS" from collapsing */
+}
+
+.selected-card-area {
+  position: relative;
+  width: 80px;
+  height: 120px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: visible; /* ✅ Allow animation overflow */
+}
+
+.selected-card-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  position: relative;
+  z-index: 2; /* ✅ Card stays on top */
+  opacity: 0;
+  animation: fadeIn 0.3s forwards; /* ✅ Fade in when fully loaded */
+}
+
+/* ✅ Drop animation starts only after the card is shown */
+.selection-animation {
+  position: absolute;
+  width: 500%;
+  height: 500%;
+  left: 50%;
+  transform: translateX(-50%);
+  opacity: 1;
+  z-index: 1; /* ✅ Animation behind the card */
+  animation: dropIn 0.5s ease-in-out forwards;
+}
+
+.attack-animation {
+  z-index: 11;
+  position: absolute;
+  width: 125%;
+  height: 400%;
+  top: -100%;
+}
+
+.battlePage-footer {
+  position: fixed; /* Fix it at the bottom of the screen */
+  bottom: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: space-between; /* Distribute space between items */
+  align-items: center; /* Vertically align items */
+  padding: 10px 20px; /* Adjust padding to your liking */
+}
+
+.battlePage-leave-button {
+  font-size: 24px;
+  background: none;
+  border: none;
+  color: white;
+  cursor: pointer;
+  border: #00ffff 1px solid;
+  border-radius: 50%;
+  padding: 2px;
+  filter: drop-shadow(0 0 5px #00ffff);
+}
+
+.battlePage-phase-name {
+  font-size: 18px;
+  color: white;
+  text-align: center; /* Ensures the text is centered */
+  border: #00ffff 2px solid;
+  width: 100px;
+  padding: 5px;
+  border-radius: 10px;
+  filter: drop-shadow(0 0 5px #00ffff);
+  background-color: #00ffff10;
+}
+
+.battlePage-lock-button {
+  font-size: 24px;
+  background: none;
+  border: none;
+  color: white;
+  cursor: pointer;
+  border: #00ffff 1px solid;
+  border-radius: 50%;
+  padding: 2px;
+  filter: drop-shadow(0 0 5px #00ffff);
+}
+
+.card-list-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 50px;
+}
+
+.no-cards-placeholder {
+  font-size: 18px;
+  color: #666;
+  text-align: center;
+  margin-top: 20px;
+}
+
+.card-list {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr); /* 5 cards per row */
+  gap: 10px;
+  width: 100%;
+  max-width: 1100px; /* Optional, adjust as per your design */
+}
+
+.card-item {
+  list-style-type: none;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  text-align: center;
+  cursor: pointer;
+  transition: transform 0.3s;
+  position: relative; /* Allow the image to be absolutely positioned */
+  height: 80px;
+  width: 60px;
+}
+
+.card-item:hover {
+  transform: scale(1.05);
+}
+
+.card-item.disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+  border: 2px solid red;
+}
+
+.card-photo-container {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  border-radius: 8px;
+}
+
+.card-photo {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.card-photo-placeholder {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: #ddd;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  color: #888;
+  border-radius: 8px;
+}
+
+/* Ensure exactly 10 cards or placeholders are displayed */
+.card-list::after {
+  content: '';
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 15px;
+  width: 100%;
+  max-width: 1100px;
+}
+
+.card-item-placeholder {
+  background-color: #f0f0f0;
+  border: 1px solid #ddd;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  color: #888;
+  font-size: 14px;
+  border-radius: 8px;
+}
+
+/* Modal Background */
+
+/* Cyberpunk Modal Background */
+.battlePageGO-game-over-modal {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(5px);
+}
+
+/* Modal Content */
+.battlePageGO-modal-content {
+  background: #0d0d0d;
+  height: 260px;
+  padding: 30px;
+  border: 2px solid #00ffff;
+  border-radius: 10px;
+  text-align: center;
+  color: #00ffff;
+  box-shadow: 0 0 20px #00ffff;
+  font-family: 'Orbitron', sans-serif;
+  text-transform: uppercase;
+  position: relative;
+}
+
+/* Title Glitch Effect */
+.battlePageGO-modal-content h2 {
+  font-size: 30px;
+  font-weight: bold;
+  color: #ff0099;
+  text-shadow:
+    0px 0px 10px #ff0099,
+    0px 0px 20px #ff0099;
+  animation: glitch 1s infinite alternate;
+}
+
+/* Win Amount */
+.battlePageGO-win-amount {
+  font-size: 22px;
+  font-weight: bold;
+  color: #ffdd00;
+  text-shadow:
+    0px 0px 10px #ffdd00,
+    0px 0px 20px #ffdd00;
+  margin-top: 15px;
+}
+
+/* Button Group */
+.battlePageGO-button-group {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  margin-top: 20px;
+}
+
+/* Cyberpunk Button */
+.battlePageGO-return-btn,
+.battlePageGO-watch-ad-btn {
+  padding: 12px 25px;
+  font-size: 18px;
+  font-weight: bold;
+  border-radius: 5px;
+  cursor: pointer;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  transition: all 0.3s ease-in-out;
+}
+
+/* Return Button */
+.battlePageGO-return-btn {
+  background: linear-gradient(90deg, #ff0099, #00ffff);
+  color: black;
+  border: 2px solid #00ffff;
+  box-shadow: 0 0 10px #00ffff;
+}
+
+.battlePageGO-return-btn:hover {
+  background: linear-gradient(90deg, #00ffff, #ff0099);
+  color: white;
+  box-shadow:
+    0 0 20px #ff0099,
+    0 0 30px #00ffff;
+  transform: scale(1.1);
+}
+
+/* Watch Ad Button */
+.battlePageGO-watch-ad-btn {
+  background: linear-gradient(90deg, #ffdd00, #ff0099);
+  color: black;
+  border: 2px solid #ffdd00;
+  box-shadow: 0 0 10px #ffdd00;
+}
+
+.battlePageGO-watch-ad-btn:hover {
+  background: linear-gradient(90deg, #ff0099, #ffdd00);
+  color: white;
+  box-shadow:
+    0 0 20px #ff0099,
+    0 0 30px #ffdd00;
+  transform: scale(1.1);
+}
+
+/* Tutorial */
+
+@keyframes pulse-glow {
+  0% {
+    box-shadow:
+      0 0 6px #00f0ff,
+      0 0 12px #00f0ff,
+      0 0 18px #00f0ff;
+  }
+  50% {
+    box-shadow:
+      0 0 10px #00f0ff,
+      0 0 20px #00f0ff,
+      0 0 30px #00f0ff;
+  }
+  100% {
+    box-shadow:
+      0 0 6px #00f0ff,
+      0 0 12px #00f0ff,
+      0 0 18px #00f0ff;
+  }
+}
+
+.battle-tut-highlight-border {
+  border: 2px solid #00f0ff;
+  border-radius: 8px;
+  animation: pulse-glow 1.5s infinite ease-in-out;
+}
+
+.battle-tut-phase-name-wrapper {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.battle-tut-message {
+  margin-top: 8px;
+  background: rgba(0, 0, 0, 0.85);
+  color: #fff;
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 14px;
+  max-width: 220px;
+  text-align: center;
+  animation: fadeIn 0.3s ease-in-out;
+}
+
+@keyframes battle-tut-pulse-glow {
+  0% {
+    box-shadow:
+      0 0 6px #00f0ff,
+      0 0 12px #00f0ff,
+      0 0 18px #00f0ff;
+  }
+  50% {
+    box-shadow:
+      0 0 10px #00f0ff,
+      0 0 20px #00f0ff,
+      0 0 30px #00f0ff;
+  }
+  100% {
+    box-shadow:
+      0 0 6px #00f0ff,
+      0 0 12px #00f0ff,
+      0 0 18px #00f0ff;
+  }
+}
+
+.battle-tut-step2-wrapper {
+  position: relative;
+}
+
+.battle-tut-step2-message {
+  position: absolute;
+  left: 50%;
+  bottom: 250px;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.85);
+  color: #fff;
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 14px;
+  max-width: 260px;
+  text-align: center;
+  z-index: 100;
+  animation: fadeIn 0.3s ease-in-out;
+}
+
+.battle-tut-highlight-border-time {
+  border: 2px solid #00f0ff !important;
+  border-radius: 8px;
+  animation: pulse-glow 1.5s infinite ease-in-out;
+}
+
+.tutorial-message-highlight-time {
+  background-color: rgba(0, 240, 255, 0.1); /* Light blue background */
+  padding: 10px;
+  border-radius: 8px;
+  border: 2px solid #00f0ff; /* Glowing border */
+  box-shadow: 0 0 10px #00f0ff;
+  font-size: 16px;
+  color: #00f0ff;
+  font-weight: bold;
+  margin-top: 10px;
+  text-align: center;
+  animation: glow 1.5s ease-in-out infinite alternate;
+}
+
+@keyframes glow {
+  0% {
+    box-shadow: 0 0 5px #00f0ff;
+  }
+  100% {
+    box-shadow: 0 0 15px #00f0ff;
+  }
+}
+
+.battle-tut-highlight-border {
+  border: 2px solid #00f0ff;
+  border-radius: 8px;
+  box-shadow: 0 0 10px #00f0ff;
+  animation: glow 0.5s ease-in-out infinite alternate;
+}
+
+.battle-tut-highlight-border-button {
+  border: 2px solid #00f0ff;
+  border-radius: 50%;
+  box-shadow: 0 0 10px #00f0ff;
+  animation: glow2 0.5s ease-in-out infinite alternate;
+}
+
+@keyframes glow2 {
+  0% {
+    box-shadow: 0 0 10px #00f0ff;
+  }
+  100% {
+    box-shadow: 0 0 20px #00f0ff;
+  }
+}
+
+.step-3-tutorial-message {
+  font-size: 16px;
+  color: #fff;
+  background-color: rgba(0, 21, 22, 0.8);
+  padding: 10px;
+  border-radius: 5px;
+  text-align: center;
+  max-width: 300px;
+  margin: 0 auto;
+  font-weight: bold;
+
+  /* Positioning to overlay the message */
+  position: absolute;
+  top: -100px; /* Adjust top to your liking */
+  left: 60%;
+  transform: translateX(-50%);
+  z-index: 10; /* Ensure it stays on top */
+}
+
+.step-5-tutorial-message {
+  font-size: 16px;
+  color: #fff;
+  background-color: rgba(0, 21, 22, 0.8);
+  padding: 10px;
+  border-radius: 5px;
+  text-align: center;
+  max-width: 300px;
+  margin: 0 auto;
+  font-weight: bold;
+
+  /* Positioning to overlay the message */
+  position: absolute;
+  top: -100px; /* Adjust top to your liking */
+  left: 40%;
+  transform: translateX(-50%);
+  z-index: 10; /* Ensure it stays on top */
+}
+
+.finish-tutorial-button {
+  background-color: #00f0ff; /* Button color */
+  color: white;
+  font-size: 16px;
+  padding: 10px 20px;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+  margin-top: 10px;
+}

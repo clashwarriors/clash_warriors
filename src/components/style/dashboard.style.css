@@ -1,23 +1,556 @@
-.dashboard {
-  height: 100vh;
+.new-homescreen {
   width: 100vw;
-  margin: 0;
-  padding: 0;
-  background-image: url('/assets/mainBG.avif');
+  height: 100vh;
+  overflow: hidden;
+  background-image: url('/new/arena-background.png'); /* Adjust path if needed */
+  background-repeat: no-repeat;
+  background-size: cover;
+  background-position: center;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+
+/* Footer Section */
+.new-homescreen-footer {
+  position: fixed;
+  bottom: 20px;
+  left: 0;
+  width: 100%;
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  padding: 10px 0;
+  background: transparent;
+  z-index: 10;
+}
+
+.new-homescreen-footer-icon {
+  width: 18vw;
+  max-width: 70px;
+  height: auto;
+  object-fit: contain;
+  transition:
+    transform 0.3s ease,
+    box-shadow 0.3s ease;
+
+  /* Default slight glow */
+  filter: drop-shadow(0 0 8px rgba(0, 255, 255, 0.3));
+}
+
+/* On hover or tap, stronger glow */
+.new-homescreen-footer-icon:hover {
+  transform: scale(1.1);
+  filter: drop-shadow(0 0 12px rgba(0, 255, 255, 0.6))
+    drop-shadow(0 0 20px rgba(0, 255, 255, 0.4));
+}
+
+.new-homescreen-summoning-wrapper {
+  perspective: 2000px;
+  width: 100%;
+  height: 100%;
+  position: absolute;
+  top: 26vh;
+  left: 0;
+  z-index: 2;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+/* Whole Summon Ring */
+.new-homescreen-summoning-circle {
+  width: 80vw;
+  max-width: 400px;
+  aspect-ratio: 1 / 1;
+  position: relative;
+  transform: rotateX(75deg);
+  transform-style: preserve-3d;
+}
+
+/* Outer Solid Ring */
+.new-homescreen-ring-outer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border: 2px solid rgba(0, 247, 255, 0.6);
+  border-radius: 50%;
+  animation: pulse 3s infinite alternate;
+}
+
+/* Dashed Rotating Ring */
+.new-homescreen-ring-dashed {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  right: 10px;
+  bottom: 10px;
+  border: 2px dashed rgba(0, 247, 255, 0.7);
+  border-radius: 50%;
+  animation: rotate-inverted 20s infinite linear;
+}
+
+/* Inner Solid Ring */
+.new-homescreen-ring-inner {
+  position: absolute;
+  top: 20px;
+  left: 20px;
+  right: 20px;
+  bottom: 20px;
+  border: 1px solid rgba(0, 255, 234, 0.5);
+  border-radius: 50%;
+  animation: rotate-normal 30s infinite linear;
+}
+
+/* Magic Circle Image */
+.new-homescreen-summoning-circle-img {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  filter: drop-shadow(0 0 10px rgba(0, 255, 255, 0.4));
+  animation: rotate-summon-image 60s linear infinite; /* Add this line */
+}
+
+/* Keyframes for slow rotation */
+@keyframes rotate-summon-image {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+/* Keyframes */
+@keyframes rotate-inverted {
+  0% {
+    transform: rotate(360deg);
+  }
+  100% {
+    transform: rotate(0deg);
+  }
+}
+
+@keyframes rotate-normal {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes pulse {
+  0% {
+    box-shadow: 0 0 30px 5px rgba(0, 247, 255, 0.5);
+  }
+  100% {
+    box-shadow: 0 0 50px 10px rgba(0, 255, 234, 0.7);
+  }
+}
+
+/* Character on Summon Circle */
+.new-homescreen-character-wrapper {
+  position: absolute;
+  bottom: 28.5vh;
+  left: 50%;
+  transform: translate(-50%, -50%); /* 🌟 same tilt as ring */
+  width: 50%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 11;
+}
+
+.new-homescreen-ring-outer,
+.new-homescreen-ring-dashed,
+.new-homescreen-ring-inner {
+  z-index: 1;
+}
+
+.new-homescreen-character-img {
+  width: 80vw;
+  max-width: 550px;
+  height: auto;
+  object-fit: contain;
+  filter: brightness(1) drop-shadow(0 0 10px rgba(0, 255, 255, 0.5));
+  animation: character-glow 2s infinite alternate;
+  z-index: 111;
+  touch-action: manipulation;
+}
+
+/* Optional subtle breathing glow */
+@keyframes character-glow {
+  0% {
+    filter: drop-shadow(0 0 5px rgba(0, 255, 255, 0.4));
+  }
+  100% {
+    filter: drop-shadow(0 0 10px rgba(0, 255, 255, 0.7));
+  }
+}
+
+/* Daily Section Buttons */
+.new-homescreen-daily-section {
+  position: absolute;
+  top: 28vh;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 5vw;
+  z-index: 8;
+  flex-wrap: wrap;
+}
+
+.new-homescreen-daily-icon {
+  width: 24vw;
+  max-width: 120px;
+  height: auto;
+  object-fit: contain;
+  filter: drop-shadow(0 0 8px rgba(0, 255, 255, 0.5));
+  transition:
+    transform 0.3s ease,
+    filter 0.3s ease;
+}
+
+/* Hover (tap) effect */
+.new-homescreen-daily-icon:hover {
+  transform: scale(1.1);
+  filter: drop-shadow(0 0 12px rgba(0, 255, 255, 0.8));
+}
+
+/* Top Header */
+
+.new-homescreen-top-header {
+  width: 100%;
+  height: 40px;
+  position: absolute;
+  top: 50px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.new-homescreen-username-container {
+  position: relative;
+  width: 180px;
+  height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  filter: drop-shadow(0 0 10px rgba(0, 255, 255, 0.4));
+}
+
+.new-homescreen-username-frame {
+  width: 100%;
+  object-fit: contain;
+  z-index: 1;
+}
+
+.new-homescreen-username-textbox {
+  position: absolute;
+  width: 70%;
+  height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 2; /* ⭐ Text box on top of image */
+}
+
+.new-homescreen-username-text {
+  color: white;
+  font-size: 16px;
+  font-weight: bold;
+  font-family: 'MedievalSharpBold', sans-serif;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* New Homescreen Header */
+
+.new-homescreen-header-background {
+  width: 65vw;
+  max-width: 350px;
+  height: 60px; /* Enough for two lines */
+  background-image: url('/new/status-bar.png'); /* your stone slab image */
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
-  overflow-y: scroll;
-  overflow-x: hidden;
-  position: relative; /* Needed for pseudo-element positioning */
+  padding: 10px 0px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 5px;
 }
 
-.dashboard::before {
-  content: '';
+.new-homescreen-header {
+  position: absolute;
+  top: 13vh;
+  height: 120px;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+  filter: drop-shadow(0 0 5px rgba(0, 255, 255, 0.4));
+}
+
+.new-homescreen-header-left {
+  width: 120px;
+  height: 100px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  position: relative;
+}
+
+.new-homescreen-photo-frame {
+  width: 100%;
+  aspect-ratio: 1 / 1.2; /* ⭐ Force rectangle shape */
+  position: relative;
+  filter: drop-shadow(0 0 5px rgba(0, 255, 255, 0.4));
+}
+
+.new-homescreen-user-img {
+  position: absolute;
+  top: 15%;
+  left: 15%;
+  width: 70%;
+  height: 70%;
+  object-fit: cover;
+  border-radius: 8px; /* Optional: slight curve */
+  z-index: 1;
+}
+
+.new-homescreen-frame-img {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  top: 0;
+  left: 0;
+  z-index: 2;
+}
+
+.new-homescreen-header-right {
+  flex: 1;
+  margin-left: 5px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 5px;
+}
+
+.new-homescreen-header-line1,
+.new-homescreen-header-line2 {
+  display: flex;
+  font-family: 'MedievalSharpBold', sans-serif;
+  font-size: 18px;
+  color: white;
+}
+
+.new-homescreen-header-lines {
+  width: 100%;
+  display: flex;
+  justify-content: flex-start; /* 🌟 align to start */
+  align-items: center;
+  gap: 40px;
+  padding-left: 40px;
+}
+
+.new-homescreen-header-left-side,
+.new-homescreen-header-right-side {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.new-homescreen-header-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-family: 'MedievalSharpBold', sans-serif;
+  font-size: 16px;
+  color: white;
+}
+
+.new-homescreen-header-icon {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+  filter: drop-shadow(0 0 10px rgba(255, 217, 0, 0.589));
+}
+
+.rain-layer {
   position: absolute;
   top: 0;
   left: 0;
   width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 15;
+  overflow: hidden;
+}
+
+#rain-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100vw;
   height: 100vh;
-  background-color: rgba(0, 0, 0, 0.185); /* Adjust color & opacity */
+  pointer-events: none;
+  overflow: hidden;
+  z-index: 1; /* Adjust under important UI */
+}
+
+.rain-drop {
+  position: absolute;
+  width: 1.5px;
+  height: 18px;
+  background: linear-gradient(to bottom, rgba(255, 255, 255, 0.3), transparent);
+  border-radius: 50%;
+  animation: fall linear infinite;
+  pointer-events: none;
+  filter: drop-shadow(0 0 2px rgba(255, 255, 255, 0.2));
+}
+
+@keyframes fall {
+  0% {
+    transform: translateY(-10vh) translateX(0px);
+    opacity: 0.6;
+  }
+  100% {
+    transform: translateY(110vh) translateX(2px); /* slight angle */
+    opacity: 0;
+  }
+}
+
+.new-homescreen-mist-container {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 2; /* Above background, below everything else */
+}
+
+.mist-patch {
+  position: absolute;
+  width: 60vw;
+  height: 40vw;
+  background: radial-gradient(circle, rgb(255, 255, 255) 0%, transparent 70%);
+  border-radius: 50%;
+  animation:
+    mistFloat 120s infinite linear alternate,
+    mistDrift 60s infinite ease-in-out alternate;
+  opacity: 0.1;
+}
+
+/* Randomize each patch a little */
+.mist-patch:nth-child(1) {
+  top: 10%;
+  left: -20%;
+  animation-delay: 0s;
+}
+
+.mist-patch:nth-child(2) {
+  top: 30%;
+  left: 80%;
+  animation-delay: 1s;
+}
+
+.mist-patch:nth-child(3) {
+  top: 60%;
+  left: -10%;
+  animation-delay: 2s;
+}
+
+.mist-patch:nth-child(4) {
+  top: 20%;
+  left: 40%;
+  animation-delay: 3s;
+}
+
+.mist-patch:nth-child(5) {
+  top: 80%;
+  left: 60%;
+  animation-delay: 5s;
+}
+
+/* Slow horizontal drift */
+@keyframes mistFloat {
+  0% {
+    transform: translateX(0) translateY(0) rotate(0deg);
+  }
+  100% {
+    transform: translateX(50vw) translateY(-20vh) rotate(10deg);
+  }
+}
+
+/* Gentle random up/down float */
+@keyframes mistDrift {
+  0% {
+    transform: translateY(0);
+  }
+  100% {
+    transform: translateY(5vh);
+  }
+}
+
+@media (max-height: 700px) {
+  .new-homescreen-summoning-wrapper {
+    top: 26vh;
+  }
+
+  .new-homescreen-character-wrapper {
+    bottom: 28vh;
+  }
+
+  .new-homescreen-character-img {
+    width: 65vw;
+  }
+
+  .new-homescreen-header {
+    top: 10vh;
+  }
+
+  .new-homescreen-daily-section {
+    top: 27vh;
+  }
+
+  .new-homescreen-daily-icon {
+    width: 23vw;
+  }
+
+  .new-homescreen-user-img {
+    width: 70%;
+    height: 70%;
+  }
+
+  .new-homescreen-photo-frame {
+    width: 100%;
+    aspect-ratio: 1 / 1.2; /* ⭐ Force rectangle shape */
+  }
+
+  .new-homescreen-header-left {
+    width: 100px;
+  }
+  .new-homescreen-header-right {
+    margin-left: 0px;
+  }
+
+  .new-homescreen-top-header {
+    top: 20px;
+  }
+  .new-homescreen-username-container {
+    width: 150px;
+  }
 }

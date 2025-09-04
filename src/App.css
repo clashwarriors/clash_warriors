@@ -9,6 +9,15 @@
   -webkit-touch-callout: none; /* Prevent long press menu on iOS */
 }
 body {
-  font-family: 'Oxanium', sans-serif;
+  font-family: 'MedievalSharpBold', sans-serif;
   color: white;
+}
+
+
+adsgram-task.task {
+  --adsgram-task-font-size: 16px;
+  --adsgram-task-icon-size: 40px;
+  --adsgram-task-icon-title-gap: 10px;
+  --adsgram-task-icon-border-radius: 8px;
+  --adsgram-task-button-width: 120px;
 }

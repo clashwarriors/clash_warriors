@@ -2,23 +2,43 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { visualizer } from 'rollup-plugin-visualizer'
 import { NodeGlobalsPolyfillPlugin } from '@esbuild-plugins/node-globals-polyfill'
+import compression from 'vite-plugin-compression' // ✅ Gzip plugin
 
 export default defineConfig({
   plugins: [
     react(),
+
+    // ✅ Bundle visualizer for analysis
     visualizer({
-      open: true, // Opens in browser after build
-      filename: 'bundle-report.html', // Optional custom name
+      open: false,
+      filename: 'bundle-report.html',
+    }),
+
+    // ✅ Gzip compression for production assets
+    compression({
+      algorithm: 'gzip',
+      ext: '.gz',
+      deleteOriginFile: false,
+      threshold: 10240, // Only compress files >10KB
     }),
   ],
 
   server: {
-    host: true, // Needed for tunneling (e.g., localtunnel)
+    host: true,
     allowedHosts: ['clashwarriorstestingserver.loca.lt'],
   },
 
   build: {
-    chunkSizeWarningLimit: 1500, // optional: silence 500kb warning
+    target: 'esnext', // ✅ Output for modern browsers
+    minify: 'terser', // ✅ Better compression than default 'esbuild'
+    terserOptions: {
+      compress: {
+        drop_console: true,
+        drop_debugger: true,
+      },
+    },
+    brotliSize: false, // ✅ Disable to speed up build
+    chunkSizeWarningLimit: 1500,
     rollupOptions: {
       output: {
         manualChunks: {

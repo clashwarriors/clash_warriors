@@ -1,132 +1,213 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { ref, get, set } from 'firebase/database';
-import { realtimeDB } from '../../../firebase';
-import Header from '../Header';
-import './style/dailyRewards.style.css';
+import React, { useState, useEffect, useCallback, useMemo } from 'react'
+import confetti from 'canvas-confetti'
+import './style/dailyRewards.style.css'
+import CachedImage from '../../Shared/CachedImage'
+import { getUserData, storeUserData } from '../../../utils/indexedDBService'
+import { updateOnline } from '../../../utils/syncService'
+const DailyRewards = React.memo(({ user }) => {
+  const [streak, setStreak] = useState(0)
+  const [claimedToday, setClaimedToday] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [showSparkle, setShowSparkle] = useState(false)
+  const [showBanner, setShowBanner] = useState(false)
 
-const dailyRewards = [
-  { day: 'Day 1', reward: '500 $WARS', description: 'Start strong!' },
-  { day: 'Day 2', reward: '1000 $WARS', description: 'Double the fun!' },
-  { day: 'Day 3', reward: '2500 $WARS', description: 'Boost your journey!' },
-  { day: 'Day 4', reward: '5000 $WARS', description: 'Level up!' },
-  { day: 'Day 5', reward: '7500 $WARS', description: 'Massive bonus!' },
-  { day: 'Day 6', reward: '10000 $WARS', description: 'Exclusive prize!' },
-  { day: 'Day 7', reward: '25000 $WARS', description: 'Epic reward!' },
-];
+  const dayImages = useMemo(
+    () => [
+      '/new/rewards/day1.png',
+      '/new/rewards/day2.png',
+      '/new/rewards/day3.png',
+      '/new/rewards/day4.png',
+      '/new/rewards/day5.png',
+      '/new/rewards/day6.png',
+      '/new/rewards/day7.png',
+    ],
+    []
+  )
 
-const DailyRewards = ({ user }) => {
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [claimedToday, setClaimedToday] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const rewardsByDay = useMemo(
+    () => [7500, 12500, 20000, 30000, 50000, 75000, 100000],
+    []
+  )
 
   const fetchStreak = useCallback(async () => {
-    if (!user?.userId) return;
+    if (!user?.userId) return
 
-    const today = new Date().toISOString().split('T')[0];
-    const userBaseRef = ref(realtimeDB, `users/${user.userId}`);
-    const streakRef = ref(realtimeDB, `users/${user.userId}/streak`);
-    const lastClaimedRef = ref(realtimeDB, `users/${user.userId}/lastClaimed`);
+    const today = new Date().toISOString().split('T')[0]
 
     try {
-      const [streakSnap, lastClaimedSnap] = await Promise.all([
-        get(streakRef),
-        get(lastClaimedRef),
-      ]);
+      const userData = await getUserData()
+      const data = userData || {
+        userId: user.userId,
+        streak: 0,
+        lastClaimed: '',
+        coins: 0,
+      }
 
-      if (streakSnap.exists() && lastClaimedSnap.exists()) {
-        const streak = streakSnap.val();
-        const lastClaimed = lastClaimedSnap.val();
+      if (data.lastClaimed) {
+        const lastDate = new Date(data.lastClaimed)
+        const diffDays = Math.floor(
+          (new Date(today) - lastDate) / (1000 * 60 * 60 * 24)
+        )
 
-        if (lastClaimed === today) {
-          setClaimedToday(true);
-          setCurrentIndex(Math.min(streak, 6));
+        if (data.lastClaimed === today) {
+          setClaimedToday(true)
+          setStreak(data.streak)
+        } else if (diffDays === 1) {
+          setClaimedToday(false)
+          setStreak(data.streak)
         } else {
-          const lastDate = new Date(lastClaimed);
-          const diffDays = Math.floor(
-            (new Date(today) - lastDate) / (1000 * 60 * 60 * 24)
-          );
-
-          if (diffDays === 1) {
-            setCurrentIndex(Math.min(streak, 6));
-          } else {
-            await set(streakRef, 0);
-            await set(lastClaimedRef, today);
-            setCurrentIndex(0);
-          }
+          data.streak = 0
+          data.lastClaimed = ''
+          await storeUserData(data)
+          setClaimedToday(false)
+          setStreak(0)
         }
       } else {
-        await set(streakRef, 0);
-        await set(lastClaimedRef, today);
-        setCurrentIndex(0);
+        await storeUserData(data)
+        setClaimedToday(false)
+        setStreak(0)
       }
     } catch (error) {
-      console.error('Error fetching streak:', error);
+      console.error('Error fetching streak:', error)
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  }, [user?.userId]);
+  }, [user?.userId])
+
+  const triggerConfetti = useCallback(() => {
+    confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } })
+  }, [])
 
   const handleClaim = useCallback(async () => {
-    if (!user?.userId || claimedToday) return;
+    if (!user?.userId || claimedToday) return
 
-    setLoading(true);
-
-    const today = new Date().toISOString().split('T')[0];
-    const streakRef = ref(realtimeDB, `users/${user.userId}/streak`);
-    const lastClaimedRef = ref(realtimeDB, `users/${user.userId}/lastClaimed`);
+    const today = new Date().toISOString().split('T')[0]
 
     try {
-      const snapshot = await get(streakRef);
-
-      if (snapshot.exists()) {
-        let streak = snapshot.val();
-
-        streak = streak >= 7 ? 0 : streak + 1;
-
-        await Promise.all([
-          set(streakRef, streak),
-          set(lastClaimedRef, today),
-        ]);
-
-        setCurrentIndex(Math.min(streak, 6));
-        setClaimedToday(true);
+      const userData = await getUserData()
+      const data = userData || {
+        userId: user.userId,
+        streak: 0,
+        lastClaimed: '',
+        coins: 0,
       }
+
+      let currentStreak = data.streak || 0
+      const newStreak = currentStreak + 1
+      const currentCoins = data.coins || 0
+
+      let reward = 0
+
+      if (currentStreak < 6) {
+        reward = rewardsByDay[currentStreak]
+      } else {
+        reward = 100000
+        setShowBanner(true)
+        setTimeout(() => setShowBanner(false), 3000)
+      }
+
+      const updatedCoins = currentCoins + reward
+
+      const updatedUserData = {
+        ...data,
+        coins: updatedCoins,
+        lastClaimed: today,
+        streak: currentStreak < 6 ? newStreak : 0,
+        totalStreaks:
+          currentStreak === 6
+            ? (data.totalStreaks || 0) + 1
+            : data.totalStreaks || 0,
+      }
+
+      // Local update
+      await storeUserData(updatedUserData)
+
+      // Background sync — no UI wait
+      updateOnline(updatedUserData).catch(console.error)
+
+      // UI updates
+      triggerConfetti()
+      setClaimedToday(true)
+      setShowSparkle(true)
+      setStreak(updatedUserData.streak)
     } catch (error) {
-      console.error('Error updating streak:', error);
-    } finally {
-      setLoading(false);
+      console.error('Error claiming reward:', error)
     }
-  }, [user?.userId, claimedToday]);
+  }, [user?.userId, claimedToday, rewardsByDay, triggerConfetti])
+
+  const getRandomPosition = useCallback(() => {
+    const x = Math.floor(Math.random() * 80) + 10
+    const y = Math.floor(Math.random() * 80) + 10
+    return { top: `${y}%`, left: `${x}%`, transform: 'translate(-50%, -50%)' }
+  }, [])
 
   useEffect(() => {
-    fetchStreak();
-  }, [fetchStreak]);
+    fetchStreak()
+  }, [fetchStreak])
 
   return (
-    <div className="dailyRewards-containerMain">
-      <Header user={user} />
+    <div className="dailyRewards-background">
       {loading ? (
         <p>Loading rewards...</p>
       ) : (
-        <div className="dailyRewards-container">
-          <div key={currentIndex} className="dailyRewards-centerClock dailyRewards-animate">
-            <p>{dailyRewards[currentIndex]?.day || 'Day ?'}</p>
-            <h2>{dailyRewards[currentIndex]?.reward || '???'}</h2>
-            <p className="dailyRewards-rewardDescription">
-              {dailyRewards[currentIndex]?.description || 'Keep going!'}
-            </p>
-            <button
-              className="dailyRewards-claimButton"
-              onClick={handleClaim}
-              disabled={claimedToday || loading}
-            >
-              {claimedToday ? 'Already Claimed' : 'Claim Reward'}
-            </button>
+        <>
+          <div className="dailyRewards-title">
+            <CachedImage
+              src="/new/rewards/daily-rewards-plate.png"
+              alt="Daily Rewards"
+              className="dailyRewards-titleImage"
+            />
           </div>
-        </div>
+
+          <div className="dailyRewards-grid">
+            {dayImages.map((src, index) => {
+              const activeIndex = !claimedToday ? streak : -1
+              const claimedIndex = claimedToday ? streak - 1 : -1
+              const isFaded = index < streak
+              const isActive = index === activeIndex
+              const isClaimed = index === claimedIndex
+              const isDay7 = index === 6
+
+              const handleClick = () => {
+                if (!isActive) return
+                handleClaim()
+              }
+
+              return (
+                <div
+                  key={index}
+                  className={`dailyRewards-dayWrapper ${isDay7 ? 'day7-wrapper' : ''}`}
+                >
+                  <CachedImage
+                    src={src}
+                    alt={`Day ${index + 1}`}
+                    className={`dailyRewards-dayImage ${isDay7 ? 'day7-image' : ''} ${isFaded ? 'faded' : ''} ${isActive ? 'active' : ''} ${isClaimed ? 'claimed' : ''}`}
+                    onClick={handleClick}
+                    style={{ cursor: isActive ? 'pointer' : 'default' }}
+                    onAnimationEnd={() => setShowSparkle(false)}
+                  />
+
+                  {isDay7 && showBanner && (
+                    <CachedImage
+                      src="/new/rewards/coinCollectBg.png"
+                      alt="Mystery Box Banner"
+                      className="day7-banner-image"
+                    />
+                  )}
+
+                  {isClaimed && showSparkle && (
+                    <div className="sparkleOverlay" style={getRandomPosition()}>
+                      ✨
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        </>
       )}
     </div>
-  );
-};
+  )
+})
 
-export default React.memo(DailyRewards);
+export default DailyRewards

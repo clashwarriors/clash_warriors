@@ -5,7 +5,8 @@
       "https://clashtesting.netlify.app",
       "http://localhost:5173",
       "https://clashwarriorstestingserver.loca.lt",
-      "https://clashwarriors.tech"
+      "https://clashwarriors.tech",
+      "https://adorable-fudge-c73118.netlify.app/"
     ],
     "method": ["GET"],
     "maxAgeSeconds": 3600

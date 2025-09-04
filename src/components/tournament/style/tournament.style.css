@@ -1,307 +1,196 @@
-@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap');
-
 .tournamentHome-container {
-  background: url('/assets/TournamentBG.avif') no-repeat center center/cover;
-  min-height: 100vh;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  font-family: 'Orbitron', sans-serif;
-  color: #fff;
-  text-shadow: 0px 0px 10px rgba(255, 255, 255, 0.8);
-  position: relative; /* Ensures ::before is relative to this */
-  overflow: hidden; /* Prevents unwanted scrolling */
+  padding: 20px;
+  font-family: 'MedievalSharpBold', sans-serif;
+  background: url('/new/tournament/tournamentBG.png') no-repeat center center;
+  background-size: cover;
+  color: rgb(237, 226, 149);
+  height: 100vh;
+  overflow: hidden; /* important: don't use overflow-y only */
+  box-sizing: border-box;
 }
 
-.tournamentHome-container::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  backdrop-filter: blur(1px); /* ✅ Corrected blur effect */
-  background: rgba(
-    0,
-    0,
-    0,
-    0.37
-  ); /* Adds slight dark overlay for readability */
-  z-index: 0; /* Places it behind the content */
-}
-
-.tournamentHome-container > * {
-  position: relative;
-  z-index: 1; /* Ensures content stays above the blur effect */
-}
-
-/* 🔹 Futuristic Header */
+/* Header */
 .tournamentHome-header {
-  position: absolute;
-  top: 20px;
-  left: 20px;
+  width: 100%;
+  display: flex;
+  justify-content: flex-start;
 }
 
 .tournamentHome-back-button {
-  background: linear-gradient(90deg, #ff0055, #a400ff);
-  border: none;
-  padding: 10px 20px;
-  font-size: 1.2rem;
+  background: transparent;
   color: white;
+  border: 2px solid white;
+  padding: 8px 16px;
+  border-radius: 6px;
   cursor: pointer;
-  border-radius: 10px;
-  text-transform: uppercase;
-  box-shadow: 0 0 10px #ff00ff;
-  transition: 0.3s;
-  top: 10px;
+  transition: background 0.3s;
 }
 
 .tournamentHome-back-button:hover {
-  transform: scale(1.1);
-  box-shadow: 0 0 20px #ff00ff;
+  background: rgba(255, 255, 255, 0.1);
 }
 
-/* 🔹 Matchmaking Container */
+/* Users Online */
+
+.tournamentHome-userOnline {
+  height: 100px;
+  width: 250px;
+  background: url('/public/new/tournament/tournamentBtnTemp.png');
+  background-size: contain;
+  background-position: center;
+  background-repeat: no-repeat;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  position: relative;
+  padding: 20px;
+}
+
+.users-online {
+  font-size: 20px;
+  text-align: center;
+  position: relative;
+  color: rgb(237, 226, 149);
+}
+
+/* Matchmaking Section */
 .tournamentHome-matchmaking-container {
   display: flex;
   flex-direction: column;
   align-items: center;
-  margin-top: 50px;
+  justify-content: center; /* vertically center */
+  gap: 16px;
+  height: 100%; /* make sure it fills available space */
 }
 
-/* 🔹 Main Buttons */
+/* Main Buttons */
 .tournamentHome-main-button {
-  background: linear-gradient(90deg, #00ccff91, #0099ff);
+  background: #3a86ff;
   border: none;
-  padding: 10px 20px;
-  font-size: 1.1rem;
-  color: white;
-  cursor: pointer;
-  border-radius: 10px;
-  text-transform: uppercase;
-  box-shadow: 0 0 15px #00ccff;
-  transition: 0.3s;
-  margin-bottom: 15px;
-}
-
-.tournamentHome-main-button:hover {
-  transform: scale(1.1);
-  box-shadow: 0 0 25px #00ccff;
-}
-
-/* 🔹 Secondary Buttons */
-.tournamentHome-secondary-button {
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.4);
-  padding: 12px 25px;
-  font-size: 1rem;
-  color: white;
-  cursor: pointer;
-  border-radius: 8px;
-  backdrop-filter: blur(10px);
-  text-transform: uppercase;
-  box-shadow: 0 0 8px rgba(255, 255, 255, 0.4);
-  transition: 0.3s;
-  margin: 10px;
-}
-
-.tournamentHome-secondary-button:hover {
-  background: rgba(255, 255, 255, 0.3);
-  box-shadow: 0 0 15px rgba(255, 255, 255, 0.8);
-}
-
-/* 🔹 Matchmaking Modal */
-.tournamentHome-modal {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: rgba(0, 0, 0, 0.178);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  backdrop-filter: blur(10px);
-  animation: fadeIn 0.3s ease-in-out;
-}
-
-.tournamentHome-modal-content {
-  background: rgba(0, 10, 30, 0.9);
-  padding: 25px;
   border-radius: 12px;
-  text-align: center;
-  border: 2px solid rgba(0, 200, 255, 0.8);
-  box-shadow: 0 0 20px rgba(0, 200, 255, 0.6);
-  animation: neonGlow 1.5s infinite alternate;
-}
-
-.tournamentHome-modal-content h2 {
-  font-size: 1.8rem;
-  margin-bottom: 10px;
-  color: #00ccff;
-}
-
-/* 🔹 Cancel Matchmaking Button */
-.tournamentHome-cancel-button {
-  background: linear-gradient(90deg, #ff0022, #ff0044);
-  border: none;
-  padding: 12px 25px;
-  font-size: 1.2rem;
+  padding: 12px 24px;
   color: white;
+  font-size: 18px;
   cursor: pointer;
-  border-radius: 8px;
-  text-transform: uppercase;
-  box-shadow: 0 0 15px #ff0022;
-  transition: 0.3s;
+  transition: background 0.3s;
 }
 
-.tournamentHome-cancel-button:hover {
-  transform: scale(1.1);
-  box-shadow: 0 0 25px #ff0022;
+.tournamentHome-main-button:disabled {
+  background: #666;
+  cursor: not-allowed;
 }
 
-/* 🔹 Animations */
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
+.tournamentHome-main-button:hover:not(:disabled) {
+  background: #265dc3;
 }
 
-@keyframes neonGlow {
-  from {
-    box-shadow: 0 0 10px rgba(0, 200, 255, 0.6);
-  }
-  to {
-    box-shadow: 0 0 20px rgba(0, 200, 255, 1);
-  }
+/* Image Buttons */
+.tournamentHome-matchmaking-container img {
+  width: 200px;
+  cursor: pointer;
+  transition: transform 0.2s;
 }
 
-.users-online {
-  font-size: 14px;
-  font-weight: bold;
-  color: #ffffff;
-  text-align: center;
-  background-color: #00ccff71;
-  padding: 10px;
-  border-radius: 5px;
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+.tournamentHome-matchmaking-container img:hover {
+  transform: scale(1.05);
 }
 
+/* Deck Error Modal */
 .deck-error-modal-overlay {
   position: fixed;
   top: 0;
   left: 0;
   width: 100%;
   height: 100%;
-  background: rgba(10, 10, 25, 0.85); /* Deep space-like backdrop */
   display: flex;
   justify-content: center;
   align-items: center;
-  z-index: 999;
-  backdrop-filter: blur(4px);
+  z-index: 1000;
+  background: rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(2px);
 }
 
 .deck-error-modal-content {
-  background: linear-gradient(145deg, #0d0d1a, #1a1a2e);
-  border: 1px solid #4fc3f7;
-  box-shadow: 0 0 20px #00ffff66, 0 0 10px #4fc3f7;
-  padding: 30px;
-  border-radius: 14px;
+  background: url('/new/tournament/7cardWarn.png');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  width: 350px;
+  height: 250px;
+  border-radius: 15px;
+  position: relative; /* Needed for absolute positioning inside */
   text-align: center;
-  max-width: 400px;
-  width: 90%;
-  font-family: 'Orbitron', 'Segoe UI', sans-serif;
-  color: #e0f7fa;
+  color: white;
+  filter: drop-shadow(0 0 20px #00c3ff);
+  overflow: hidden;
+  margin: 50px auto; /* Center modal horizontally */
 }
 
-.deck-error-modal-content h3 {
-  font-size: 24px;
-  margin-bottom: 15px;
-  color: #00e5ff;
-  text-shadow: 0 0 5px #00e5ff88;
-}
-
-.deck-error-modal-content p {
-  font-size: 18px;
-  margin-bottom: 20px;
-  color: #ffffff;
-}
-
-.deck-error-modal-content button {
-  background-color: #00e5ff;
-  color: #0d0d1a;
-  border: none;
-  padding: 10px 20px;
-  border-radius: 8px;
-  font-weight: bold;
-  font-size: 15px;
+.deck-error-modal-button {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 180px;
+  height: 60px;
   cursor: pointer;
-  transition: all 0.2s ease;
-  box-shadow: 0 0 10px #00e5ff88;
 }
 
-.deck-error-modal-content button:hover {
-  background-color: #4fc3f7;
-  box-shadow: 0 0 15px #4fc3f7cc;
-}
-
-/* Container for the sound toggle */
-.sound-toggle-container {
+/* Matchmaking Modal */
+.tournamentHome-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.5); /* semi-transparent overlay */
   display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1050;
+}
+
+.tournamentHome-modal-content {
+  width: 350px;
+  height: 300px;
+  background: url('/new/tournament/matchmakingBg.png');
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: contain;
+  border-radius: 15px;
+  text-align: center;
+  color: white;
+  filter: drop-shadow(0 0 20px #00c3ff);
+  display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  margin-top: 20px;
+  border-radius: 10px;
+  position: relative; /* Important: makes child positioning relative to this */
+  overflow: hidden;
 }
 
-/* Label styles */
-.sound-toggle-label {
-  font-size: 16px;
-  color: #fff;
-  display: flex;
-  align-items: center;
-  cursor: pointer;
-}
-
-/* Hide the default checkbox */
-.sound-toggle-input {
-  display: none;
-}
-
-/* The slider (toggle) styles */
-.sound-toggle-slider {
-  position: relative;
-  width: 50px;
-  height: 24px;
-  background-color: #ccc;
-  border-radius: 34px;
-  transition: background-color 0.3s ease;
-  margin-left: 10px;
-  cursor: pointer;
-}
-
-/* The knob inside the slider */
-.sound-toggle-slider::before {
-  content: '';
+.tournamentHome-cancel-button {
   position: absolute;
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  background-color: #fff;
-  transition: transform 0.3s ease;
-  top: 3px;
-  left: 3px;
+  bottom: 0;
+  left: 50;
+  width: 60%;
+  padding: 15px 0;
+  color: white;
+  border: none;
+  font-size: 1rem;
+  text-align: center;
+  cursor: pointer;
+  border-bottom-left-radius: 10px;
+  border-bottom-right-radius: 10px;
 }
 
-/* When checkbox is checked, move the slider and change the color */
-.sound-toggle-input:checked + .sound-toggle-slider {
-  background-color: #af4c4c;
-}
-
-/* When the checkbox is checked, move the knob to the right */
-.sound-toggle-input:checked + .sound-toggle-slider::before {
-  transform: translateX(26px);
+/* Tutorial State */
+.tutorial-active {
+  border: 3px dashed #ffd700;
+  padding: 8px;
 }

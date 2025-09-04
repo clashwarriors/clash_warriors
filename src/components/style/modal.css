@@ -1,162 +1,202 @@
-/* --- Modal --- */
-.modal {
+.new-modal {
   position: fixed;
   top: 0;
   left: 0;
-  width: 100%;
-  height: 100%;
-  background-color: rgba(0, 0, 0, 0.5);
+  width: 100vw;
+  height: 100vh;
+  background-color: rgba(0, 0, 0, 0.7);
   display: flex;
   justify-content: center;
   align-items: center;
   z-index: 9999;
 }
 
-.modal-content {
-  padding: 20px;
-  border-radius: 10px;
+.new-modal-content {
+  background: url('/new/collectionpage/stats/modal-bg.png') no-repeat center;
+  background-size: cover;
+  padding: 32px 24px;
+  border-radius: 24px;
+  width: 90%;
+  max-width: 420px;
   height: 70%;
-  width: 70%;
-  max-width: 500px;
   position: relative;
-  border-radius: 20px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  font-family: 'MedievalSharpBold', sans-serif;
 }
 
-.close-btn {
+.new-modal-close-btn {
   position: absolute;
-  top: 10px;
-  right: 10px;
-  font-size: 24px;
+  top: 50px;
+  right: 12px;
+  filter: drop-shadow(0 0 5px rgba(0, 204, 255, 0.5));
+  z-index: 1;
   cursor: pointer;
+  transition: transform 0.3s ease;
+  height: 50px;
+  width: 50px;
 }
 
-.modal-body {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  height: 100%;
-  width: 100%;
-}
-
-/* --- Flip Card --- */
-.flip-card {
-  width: 100%;
-  height: 100%;
-  perspective: 1000px; /* Enable 3D perspective */
-  cursor: pointer; /* Add cursor pointer to indicate the flip is clickable */
-}
-
-.flip-card-inner {
-  position: relative;
-  width: 100%;
-  height: 100%;
-  transition: transform 0.6s;
-  transform-style: preserve-3d;
-}
-
-.flip-card-inner.flipped {
-  transform: rotateY(180deg);
-}
-
-/* --- Front of the Card --- */
-.flip-card-front,
-.flip-card-back {
+.new-modal-close-icon {
   position: absolute;
-  width: 100%;
-  height: 100%;
-  backface-visibility: hidden;
-  display: flex;
+  top: -10px;
+  right: 12px;
+  filter: drop-shadow(0 0 5px rgba(0, 225, 255, 0.925));
+  z-index: 1;
+  cursor: pointer;
+  transition: transform 0.3s ease;
+  height: 50px;
+  width: 50px;
+  opacity: 2;
+}
+
+.new-modal-card-frame {
+  width: 140px;
+  height: 180px;
+  border-radius: 12px;
+  overflow: hidden;
+  position: relative;
+  display: flex; 
   justify-content: center;
   align-items: center;
-  border-radius: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  top: 12vh;
 }
 
-.flip-card-front img {
-  width: 100%;
+
+/* Rarity Frame Overlays */
+.modal-rarity-common::before,
+.modal-rarity-uncommon::before,
+.modal-rarity-rare::before,
+.modal-rarity-mythical::before,
+.modal-rarity-legendary::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-repeat: no-repeat;
+  z-index: 1;
+  pointer-events: none;
+  border-radius: 12px;
   height: 100%;
-  object-fit: cover; /* Make sure the image covers the entire area */
-  border-radius: 20px;
 }
 
-/* --- Back of the Card --- */
-.flip-card-back {
-  background-color: rgb(0, 0, 0);
-  backdrop-filter: blur(8px); /* Soft blur effect to create depth */
-  transform: rotateY(180deg);
-  border: 1px solid rgba(255, 255, 255, 0.295);
-  padding: 20px;
-  box-sizing: border-box;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  backface-visibility: hidden; /* Hide the back content when facing the front */
-  border-radius: 20px; /* Rounded corners for the back */
-  box-shadow: 0px 10px 20px rgba(0, 0, 0, 0.1); /* Light shadow for a soft 3D effect */
+.modal-rarity-common::before {
+  background-image: url('/new/collectionpage/frames/common-frame.png');
 }
 
-/* --- Card Details --- */
-.card-details {
-  text-align: left; /* Align text to the left for better readability */
-  flex-grow: 1; /* Allow details to fill the available space */
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-start;
-  padding-bottom: 20px; /* Space for button at the bottom */
+.modal-rarity-uncommon::before {
+  background-image: url('/new/collectionpage/frames/uncommon-frame.png');
+  height: 110%;
+  margin-top: -10px;
 }
 
-.card-details h2 {
+.modal-rarity-rare::before {
+  background-image: url('/new/collectionpage/frames/rare-frame.png');
+  margin-top: -20px;
+  height: 110%;
+
+}
+.modal-rarity-mythical::before {
+  background-image: url('/new/collectionpage/frames/mythical-frame.png');
+}
+.modal-rarity-legendary::before {
+  background-image: url('/new/collectionpage/frames/legendary-frame.png');
+  margin-top: -20px;
+  height: 110%;
+
+}
+
+.new-modal-card-image {
+  width: 90%;
+  height: 90%;
+  object-fit: cover;
+  position: relative;
+  z-index: 0;
+  border-radius: 12px;
+}
+
+.new-modal-card-details {
+  color: #f5f5f5;
+  text-align: center;
+  width: 100%;
+  margin-top: 12vh; /* Adjust the value to your preference */
+}
+
+
+.new-modal-title {
   font-size: 1.6rem;
   font-weight: bold;
+  color: #ffd700;
+  margin-bottom: 8px;
+}
+
+.new-modal-description {
+  font-size: 1.2rem;
   margin-bottom: 12px;
-  text-align: center; /* Center the name */
-  color: #ffffff; /* Dark text color for the name */
+  color: #ccc;
+  line-height: 1.4;
+  padding: 0 10px;
 }
 
-.card-details p {
-  font-size: 1rem;
-  line-height: 1.6;
-  margin-bottom: 15px;
-  color: #ffffff; /* Slightly lighter color for description */
-  text-align: center;
+.new-modal-stats-row {
+  display: flex;
+  justify-content: center; /* Centers the items horizontally */
+  margin: 10px 0; /* Adjusted margin */
+  flex-wrap: wrap;
+  gap: 30px; /* Gap between the items */
 }
 
-/* --- Stats Section --- */
-.card-details .card-stats {
-  font-size: 14px;
-  margin-top: 15px;
-  margin-bottom: 25px;
-  color: #ffffff;
+.new-modal-stats-row div {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 1.5rem;
+  color: #fff;
 }
 
-.card-details .card-stats p {
-  margin: 6px 0;
+.new-modal-stats-row img {
+  width: 24px;
+  height: 24px;
 }
 
-.card-details .card-stats strong {
+.new-modal-price-buy {
+  display: flex;
+  flex-direction: column; /* Stack items vertically */
+  justify-content: center;
+  align-items: center;
+  margin-top: 16px;
+  width: 100%;
+  padding: 0 10px;
+  box-sizing: border-box;
+}
+
+.price-display {
+  font-size: 1.5rem;
   font-weight: bold;
-  color: #ffffff;
+  color: gold;
+  margin-bottom: 8px;
 }
 
-/* --- Purchase Button --- */
-.purchase-btn {
-  padding: 12px 24px;
-  background-color: #ff0000;
-  color: white;
+.new-modal-purchase-btn {
+  background-color: transparent;
   border: none;
-  border-radius: 5px;
   cursor: pointer;
-  margin-top: 20px;
-  font-size: 1rem;
-  width: 100%; /* Full width to make it responsive */
-  text-align: center;
+  transition: background 0.3s ease;
 }
 
-.purchase-btn:disabled {
-  background-color: #888;
+.new-modal-purchase-btn img {
+  width: 100%;
+  height: 60px;
+  max-width: 140px; /* Adjust as necessary */
+}
+
+.new-modal-purchase-btn:disabled {
+  background-color: #555;
   cursor: not-allowed;
 }
 
-.iron-man-icon {
-  width: 125px;
-  height: 125px;
-}

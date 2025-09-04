@@ -1,454 +1,327 @@
-/* --- COLLECTIONS CONTAINER --- */
-.collections-container {
+/* Main Container */
+.new-collection-container {
+  width: 100vw;
+  height: 100vh;
+  background-image: url('/new/collectionpage/background-collection2.png');
+  background-size: cover;
+  background-repeat: no-repeat;
+  background-position: center;
+  position: relative;
+  overflow-y: auto;
+}
+
+/* Title Container */
+.new-collection-title-wrapper {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  margin-top: 55px;
+  filter: drop-shadow(0 0 10px rgba(255, 94, 0, 0.6));
+}
+
+.new-collection-title {
+  width: 50%;
+  max-width: 400px;
+  object-fit: contain;
+}
+
+/* Shared Scroll Layout (Rarity + Characters) */
+.new-collection-rarity-scroll,
+.new-collection-character-list {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  width: 90%;
+  margin: 0px auto 0 auto; /* 40px below title */
+  scroll-behavior: smooth;
+  align-items: center;
+}
+
+/* Rarity Items */
+.new-collection-rarity-item {
+  flex: 0 0 auto;
+  width: 140px;
+  text-align: center;
+  opacity: 0;
+  animation: fadeInSlideUp 0.6s ease forwards;
   display: flex;
   flex-direction: column;
-  justify-content: flex-start;
-  align-items: center;
-  min-height: 100vh;
-  width: 100%;
-  overflow-y: auto;
-  overflow-x: hidden;
-  background-color: #0a0a0a;
-  padding-top: calc(280px + 20px);
-}
-
-/* --- HEADER --- */
-.collection-header {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 80px;
-  z-index: 100;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  background-color: #0a0a0a;
-  border-bottom: 2px solid #646464;
-  box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.5);
-  padding: 0 20px;
-  box-sizing: border-box;
-}
-
-.collection-header-left {
-  font-size: 20px;
-  font-weight: bold;
-  color: #f5f5f5;
-}
-
-.collection-header-right {
-  display: flex;
-  align-items: center;
-  border: 1.5px solid #696969;
-  border-radius: 20px;
-  animation: sparkle 3.5s infinite;
-  padding-right: 30px;
-  margin-right: 15px;
-}
-
-@keyframes sparkle {
-  0% {
-    border-color: #696969;
-  }
-
-  50% {
-    border-color: #ffffff;
-  }
-
-  100% {
-    border-color: #696969;
-  }
-}
-
-.crypto-icon {
-  width: 35px;
-  height: 35px;
-  margin-right: 10px;
-  filter: drop-shadow(0px 2px 4px rgba(255, 255, 255, 0.3));
-  border-radius: 50%;
-  border: 2px solid #00ffa2;
-}
-
-.total-crypto {
-  font-size: 18px;
-  font-weight: 500;
-  color: #00ffa2;
-  text-shadow: 0px 2px 6px rgba(0, 255, 162, 0.8);
-}
-
-.collections-nftcontenedor {
-  display: flex;
   justify-content: center;
   align-items: center;
-  position: relative;
-  width: 100%;
+  border-radius: 10px;
 }
 
-.collections-nftcard {
-  width: 250px;
-  height: 320px;
-  border-radius: 20px;
+/* Glows by Rarity */
+.new-collection-rarity-item:nth-child(1) {
+  filter: drop-shadow(0 0 8px rgba(255, 102, 0, 0.6));
+  animation-delay: 0s;
+}
+.new-collection-rarity-item:nth-child(2) {
+  filter: drop-shadow(0 0 8px rgba(27, 114, 0, 0.6));
+  animation-delay: 0.1s;
+}
+.new-collection-rarity-item:nth-child(3) {
+  filter: drop-shadow(0 0 8px rgba(0, 225, 255, 0.8));
+  animation-delay: 0.2s;
+}
+.new-collection-rarity-item:nth-child(4) {
+  filter: drop-shadow(0 0 8px rgba(174, 0, 255, 0.6));
+  animation-delay: 0.3s;
+}
+.new-collection-rarity-item:nth-child(5) {
+  filter: drop-shadow(0 0 8px rgba(255, 145, 0, 0.6));
+  animation-delay: 0.4s;
+}
+
+/* Rarity Label Centered */
+.new-collection-rarity-item span {
   position: absolute;
-  transition: 0.6s ease-out;
-  transform-origin: center center;
-  z-index: 1;
-}
-
-.collections-nftcard-image {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  width: 100%;
-  height: 100%;
-  overflow: hidden;
-}
-
-.collections-nftcard-image img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  border-radius: 20px;
-}
-
-.collections-nftprincipal {
-  transform: translateX(0);
-  z-index: 10; /* This ensures the current image is on top */
-}
-
-.collections-nftsiguiente {
-  transform: translateX(120%) scale(0.8) perspective(40px) rotateY(-0.5deg);
-  filter: blur(3px);
-  opacity: 0.7;
-  z-index: 8;
-}
-
-.collections-nftanterior {
-  transform: translateX(-120%) scale(0.8) perspective(40px) rotateY(0.5deg);
-  filter: blur(3px);
-  opacity: 0.7;
-  z-index: 8;
-}
-
-.collections-nftocultar {
-  opacity: 0;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-family: 'MedievalSharpBold', sans-serif;
+  font-size: 20px;
+  color: white;
+  text-shadow: 0 0 5px black;
   pointer-events: none;
 }
 
-.collection-name {
-  text-align: center;
-  font-size: 18px;
-  color: white;
-  margin-top: 10px;
-  font-weight: bold;
-}
-
-#div-transparent-previous,
-#div-transparent-next {
-  position: absolute;
-  width: 50%;
-  height: 100%;
-  top: 0;
-  z-index: 9;
-  cursor: pointer;
-  background: rgba(0, 0, 0, 0.3);
-  transition: background 0.3s ease;
-}
-
-#div-transparent-previous {
-  left: 0;
-}
-
-#div-transparent-next {
-  right: 0;
-}
-
-#div-transparent-previous:hover,
-#div-transparent-next:hover {
-  background: rgba(0, 0, 0, 0.5);
-}
-
-/* --- GROUP TITLE --- */
-.group-title {
-  font-size: 24px;
-  color: #ffffff;
-  font-weight: bold;
-  margin-bottom: 20px; /* Ensures title has proper space */
-}
-
-/* */
-
-.collection-filter-search {
-  position: fixed;
-  z-index: 21; /* Lower z-index to place below the main header */
-  top: 80px; /* Place it below the main header */
+/* Character List Wrapper */
+.new-collection-character-wrapper {
   width: 100%;
-  height: 60px;
-  background-color: #00000091;
-  backdrop-filter: blur(5px);
-  border-radius: 10px;
+}
+
+/* Character Items */
+.new-collection-character-list-item {
+  flex: 0 0 auto;
+  width: 140px;
   display: flex;
+  justify-content: center;
   align-items: center;
-  justify-content: space-between;
-  padding: 0 20px;
-  margin-bottom: 20px; /* Add some space below it */
-}
-
-/* Container */
-.filter-container {
-  display: flex;
-  align-items: center;
-  position: relative; /* Dropdown needs to be positioned relative to this */
-}
-
-.collection-search-icon {
-  width: 35px;
-  height: 35px;
-  cursor: pointer;
-  filter: drop-shadow(0px 2px 4px rgba(255, 255, 255, 0.3));
-}
-
-/* Filter Icon */
-.filter-icon {
-  width: 35px;
-  height: 35px;
-  cursor: pointer;
-  filter: drop-shadow(0px 2px 4px rgba(255, 255, 255, 0.3));
-  transition: transform 0.2s ease-in-out;
-  position: absolute; /* Fix position of the icon */
-  padding-top: 5px;
-  padding-left: 15px;
-}
-
-.filter-icon:hover {
-  transform: scale(1.1);
-}
-
-/* Filter Options */
-.filter-options {
-  display: flex;
-  align-items: center;
-  position: absolute; /* Keep dropdown fixed below the icon */
-  top: 40px; /* Adjust the top position below the filter icon */
-  left: 0; /* Align to the left of the filter icon */
-}
-
-/* Dropdown */
-.dropdown {
-  position: relative;
-}
-
-/* Category Selector */
-.category-selector {
-  background: #1b1b1b;
-  color: white;
-  padding: 10px 15px;
-  min-width: 150px;
-  cursor: pointer;
-  text-align: center;
-  font-weight: bold;
-  border: 1px solid #555;
-  transition: all 0.2s ease-in-out;
-  border-top-right-radius: 10px;
-  border-top-left-radius: 10px;
-}
-
-.category-selector:hover {
-  background: #444;
-}
-
-/* Dropdown List */
-.dropdown-list {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  background: #020202;
-  color: white;
-  list-style: none;
-  padding: 5px 0;
-  margin: 0;
-  width: 100%;
-  box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.2);
-  display: flex;
-  flex-direction: column;
-  z-index: 10;
-  border-bottom-right-radius: 10px;
-  border-bottom-left-radius: 10px;
-}
-
-/* Individual category items animation */
-.dropdown-list li {
-  padding: 8px 12px;
-  cursor: pointer;
-  transition: background 0.2s ease-in-out;
-  text-align: center;
   opacity: 0;
-  transform: translateX(-30px);
-  animation: slideInLeft 0.3s ease-out forwards;
-  animation-delay: var(--delay); /* Dynamic delay for each item */
+  animation: fadeInSlideUp 0.6s ease forwards;
+  border-radius: 10px;
+  filter: drop-shadow(0 0 6px rgba(255, 255, 255, 0.4));
 }
 
-.dropdown-list li:hover {
-  background: #444;
+/* Character Animation Delay */
+.new-collection-character-list-item:nth-child(1) {
+  animation-delay: 0s;
+}
+.new-collection-character-list-item:nth-child(2) {
+  animation-delay: 0.1s;
+}
+.new-collection-character-list-item:nth-child(3) {
+  animation-delay: 0.2s;
+}
+.new-collection-character-list-item:nth-child(4) {
+  animation-delay: 0.3s;
+}
+.new-collection-character-list-item:nth-child(5) {
+  animation-delay: 0.4s;
 }
 
-/* Slide in from left animation */
-@keyframes slideInLeft {
+/* Shared Image Style */
+.new-collection-rarity-item img,
+.new-collection-character-list img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+  animation: characterFade 0.3s ease forwards;
+}
+
+/* Animations */
+@keyframes fadeInSlideUp {
+  0% {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes characterFade {
   from {
     opacity: 0;
-    transform: translateX(-30px);
+    transform: scale(0.95);
   }
   to {
     opacity: 1;
-    transform: translateX(0);
+    transform: scale(1);
   }
 }
 
-.collection-search-icon {
-  width: 35px;
-  height: 35px;
-  cursor: pointer;
-  filter: drop-shadow(0px 2px 4px rgba(255, 255, 255, 0.3));
-  transition: transform 0.2s ease-in-out;
-  padding-top: 5px;
-  padding-right: 15px;
-  position: relative;
-}
-
-/* Centered Search Bar */
-.search-bar-container {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 20%;
-  visibility: hidden; /* Hidden by default */
-  opacity: 0; /* Hidden by default */
-  transition:
-    visibility 0s,
-    opacity 0.3s ease-in-out;
-  margin-left: 20px; /* Space between the filter icon and search bar */
-  flex-grow: 1; /* Take remaining space between icons */
-}
-
-/* Show the search bar when active */
-.search-bar-container.visible {
-  visibility: visible;
-  opacity: 1;
-}
-
-/* Search Bar input */
-.colleciton-search-input {
-  z-index: 1;
-  width: 50px;
-  padding: 10px;
-  border-radius: 20px;
-  border: 1px solid #444;
-  background-color: #333;
-  color: white;
-  margin-right: -30px; /* Space between the input and search icon */
-  transition: all 0.2s ease-in-out;
-}
-
-/* Adjusted visibility of the input field */
-.colleciton-search-input:focus {
-  outline: none;
-  box-shadow: 0px 0px 10px rgba(0, 255, 0, 0.5); /* Optional effect */
-}
-
-/* Expand search input width when visible */
-.search-bar-container.visible .colleciton-search-input {
-  width: 220px; /* Expanded width when visible */
-}
-
-.search-results {
-  position: absolute;
-  top: 100%; /* Position it right below the search bar */
-  left: 50%;
-  transform: translateX(-50%); /* Center it horizontally */
-  width: 220px; /* Match search bar width */
-  background-color: #000000;
-  border-radius: 10px;
-  border: 1px solid #444;
-  max-height: 300px;
-  overflow-y: auto;
-  z-index: 10;
-  padding: 10px;
-  box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.3);
-}
-
-.search-results h4 {
-  color: white;
-  margin-bottom: 8px;
-}
-
-.search-results ul {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-}
-
-.search-results li {
-  padding: 4px 4px;
-  cursor: pointer;
-  color: white;
-  transition: background 0.2s ease-in-out;
-  display: flex;
-  justify-content: space-between; /* Push elements apart */
-  align-items: center;
-}
-
-.search-results li:hover {
-  background-color: #444;
-}
-
-.search-results-card-photo {
-  width: 60px;
-  height: 60px;
-  border-radius: 5px;
-  object-fit: contain;
-  margin-left: auto; /* Push the image to the right */
-}
-
-/* Width of the entire scrollbar */
-::-webkit-scrollbar {
-  display: none;
-}
-
-/* --- EACH COLLECTION SECTION --- */
-.collection-section {
-  width: 100%;
-  max-width: 1200px; /* Keeps content centered */
-  text-align: center;
-  margin-bottom: 140px; /* 🔥 Reduced space between sections */
-}
-
-/* --- SLIDESHOW WRAPPER (Fix Overlapping) --- */
-.slideshow-wrapper {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 180px; /* Spacing between slideshow and button */
-  position: relative;
-  width: 100%;
-}
-
-/* --- EXPLORE BUTTON --- */
-.explore-btn {
-  padding: 12px 24px;
-  background-color: #ff9800;
-  color: white;
+.new-collection-close-button0 {
+  background: transparent;
   border: none;
-  border-radius: 8px;
+  padding: 0;
   cursor: pointer;
-  font-size: 16px;
-  transition: 0.3s ease-in-out;
 }
 
-.explore-btn:hover {
-  background-color: #e68900;
+.new-collection-close-button0 img {
+  height: 35px;
+  width: 35px;
+  object-fit: contain;
+  display: block;
+  animation: characterFade 0.3s ease forwards;
+  filter: brightness(2);
+  filter: drop-shadow(0 0 8px rgba(0, 238, 255, 0.6));
 }
 
-@media (max-width: 768px) {
-  .collections-container {
-    padding-top: calc(200px + 60px); /* Adjust for mobile or smaller screens */
-  }
+.loading-message {
+  text-align: center;
+  padding: 16px;
+  color: #888;
+  font-style: italic;
+  z-index: 10;
+}
+
+/* Cards cssdsfffffffffffffffffaffffffffffffffffffffffffffffffffffffffffff */
+
+/* Cards Container */
+.new-collection-cards-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px; /* Space between cards */
+  justify-content: center;
+  padding: 20px;
+  overflow-y: auto;
+}
+
+/* Card Items */
+.new-collection-character-list-item {
+  width: calc(50% - 10px); /* 2 cards per row with some gap */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  position: relative;
+  border-radius: 12px;
+  overflow: hidden;
+  box-sizing: border-box;
+  transition:
+    transform 0.3s ease,
+    filter 0.3s ease;
+  background-color: transparent; /* Default transparent background */
+}
+
+/* Rarity-specific frames - Manually add sizes for each frame */
+.new-collection-character-list-item.rarity-common {
+  width: 150px;
+  height: 200px;
+  filter: drop-shadow(0 0 8px rgba(255, 102, 0, 0.6)); /* Common glow */
+}
+
+.new-collection-character-list-item.rarity-uncommon {
+  width: 150px;
+  height: 200px;
+  filter: drop-shadow(0 0 8px rgba(27, 114, 0, 0.6)); /* Uncommon glow */
+}
+
+.new-collection-character-list-item.rarity-rare {
+  width: 150px;
+  height: 210px;
+  filter: drop-shadow(0 0 8px rgba(0, 225, 255, 0.8)); /* Rare glow */
+}
+
+.new-collection-character-list-item.rarity-rare img {
+  padding-top: 20px;
+}
+
+.new-collection-character-list-item.rarity-mythical {
+  width: 150px;
+  height: 200px;
+  filter: drop-shadow(0 0 8px rgba(174, 0, 255, 0.6)); /* Mythical glow */
+}
+
+.new-collection-character-list-item.rarity-legendary {
+  width: 150px;
+  height: 200px;
+  filter: drop-shadow(0 0 8px rgba(255, 145, 0, 0.6)); /* Legendary glow */
+}
+
+/* Frame overlay */
+.new-collection-character-list-item::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-size: cover; /* Makes sure the frame covers the entire card */
+  background-repeat: no-repeat;
+  background-position: center;
+  z-index: 1; /* Keeps the frame on top */
+  border-radius: 12px; /* Matches card's border-radius */
+}
+
+/* Specific frame background per rarity */
+.new-collection-character-list-item.rarity-common::before {
+  background-image: url('/new/collectionpage/frames/common-frame.png');
+}
+
+.new-collection-character-list-item.rarity-uncommon::before {
+  background-image: url('/new/collectionpage/frames/uncommon-frame.png');
+}
+
+.new-collection-character-list-item.rarity-rare::before {
+  background-image: url('/new/collectionpage/frames/rare-frame.png');
+}
+
+.new-collection-character-list-item.rarity-mythical::before {
+  background-image: url('/new/collectionpage/frames/mythical-frame.png');
+}
+
+.new-collection-character-list-item.rarity-legendary::before {
+  background-image: url('/new/collectionpage/frames/legendary-frame.png');
+}
+
+/* Hover effect for cards */
+.new-collection-character-list-item {
+  filter: brightness(1.2);
+}
+
+/* Image Styling */
+.new-collection-character-list-item img {
+  width: 90%;
+  height: 100%;
+  object-fit: contain; /* Ensure image fits within the frame */
+  position: relative;
+  z-index: 0; /* Keeps image below the frame */
+}
+
+/* Fallback image */
+.new-collection-character-list-item img[src='/fallback.png'] {
+  object-fit: contain; /* Ensure fallback image stays within the card */
+}
+
+/* Loading and End Reached Messages */
+.loading-message,
+.end-message {
+  text-align: center;
+  padding: 16px;
+  font-size: 18px;
+  color: #888;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  border-radius: 10px;
+  width: 90%;
+}
+
+.loading-message {
+  color: #fff;
+  font-style: italic;
+}
+
+.end-message {
+  color: #ff6347; /* Red color for end message */
+  font-weight: bold;
+}
+
+.new-collection-character-list-item:last-child {
+  margin-bottom: 100px;
 }
