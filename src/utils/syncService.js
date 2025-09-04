@@ -34,7 +34,6 @@ export const initializeLocalData = async (userId) => {
     }
   } else {
     console.log('Local data already exists. Skipping Firestore init.')
-    autoCheckSpecialUsername(localUser)
   }
 }
 
@@ -52,12 +51,12 @@ export const updateOnline = async (userData) => {
 }
 
 // Helper: automatically check username and apply special coins rule
-const autoCheckSpecialUsername = async (user) => {
-  if (!user) return
-  if (user.username === 'ethanclime') {
-    // Update coins in IndexedDB
-    user.coins = 1000000000
-    await storeUserData(user) // saves the updated coins to IndexedDB
-    console.log('Special user detected! Coins set to 1,000,000 in IndexedDB.')
-  }
-}
+// const autoCheckSpecialUsername = async (user) => {
+//   if (!user) return
+//   if (user.username === 'ethanclime') {
+//     // Update coins in IndexedDB
+//     user.coins = 1000000000
+//     await storeUserData(user) // saves the updated coins to IndexedDB
+//     console.log('Special user detected! Coins set to 1,000,000 in IndexedDB.')
+//   }
+// }
