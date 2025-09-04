@@ -35,7 +35,6 @@
   padding-bottom: 10px;
   background-color: #00000075;
   width: 100%;
-  
 }
 
 .defaultDeck-title {
@@ -351,7 +350,7 @@
   text-align: center;
   max-width: 350px;
   width: 90%;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
 /* Buttons */
@@ -389,3 +388,175 @@
   background-color: #bbb;
 }
 
+/* Tutorial Overlay */
+/* -------------------- Step 1: Highlight all cards -------------------- */
+.tutorial-highlight {
+  position: relative;
+  z-index: 10000;
+  border: 3px solid #ffd18d;
+  border-radius: 8px;
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.6);
+  animation: pulseBorder 2s infinite;
+}
+
+/* -------------------- Step 2: Dim all cards except first -------------------- */
+.tutorial-step2 .defaultDeck-card {
+  opacity: 0.2;
+  transform: scale(0.95);
+  pointer-events: none;
+  transition:
+    transform 0.3s ease,
+    opacity 0.3s ease;
+}
+
+.tutorial-step2 .defaultDeck-card.tutorial-single-card-step2 {
+  opacity: 1 !important;
+  transform: scale(1.2) !important;
+  pointer-events: auto !important;
+  z-index: 10001;
+  border: 3px solid #00ff00;
+  border-radius: 10px;
+  box-shadow: 0 0 20px #00ff00;
+  transition:
+    transform 0.3s ease,
+    opacity 0.3s ease;
+  animation: pulseBorder 1s infinite;
+}
+
+/* -------------------- Step 3: Zoom card & highlight stats -------------------- */
+.tutorial-step3 .defaultDeck-card:not(.tutorial-single-card-step2) {
+  opacity: 0.2;
+  transform: scale(0.95);
+  pointer-events: none;
+}
+
+.tutorial-step3 .defaultDeck-card.tutorial-single-card-step2 {
+  opacity: 1 !important;
+  transform: scale(1.2) !important;
+  pointer-events: auto !important;
+  z-index: 10001;
+  border: 3px solid #00ff00;
+  border-radius: 10px;
+  box-shadow: 0 0 20px #00ff00;
+  transition:
+    transform 0.3s ease,
+    opacity 0.3s ease;
+  animation: pulseBorder 1s infinite;
+}
+
+.tutorial-step3 .tutorial-card-stats {
+  background-color: rgba(255, 255, 0, 0.9);
+  padding: 4px 6px;
+  border-radius: 4px;
+  font-weight: bold;
+  animation: pulseStats 1s infinite;
+  display: inline-block;
+}
+
+/* -------------------- Step 4: Final card selection -------------------- */
+.tutorial-step4 .defaultDeck-card:not(.tutorial-single-card-step2) {
+  opacity: 0.2;
+  transform: scale(0.95);
+  pointer-events: none;
+}
+
+.tutorial-step4 .defaultDeck-card.tutorial-single-card-step2 {
+  opacity: 1 !important;
+  transform: scale(1.2) !important;
+  pointer-events: auto !important;
+  z-index: 10001;
+  border: 3px solid #00ff00;
+  border-radius: 10px;
+  box-shadow: 0 0 20px #00ff00;
+  transition:
+    transform 0.3s ease,
+    opacity 0.3s ease;
+  animation: pulseBorder 1s infinite;
+}
+
+/* -------------------- Overlay Tutorial -------------------- */
+.tutorial-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 10002;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.tutorial-box {
+  background: #ff841f;
+  padding: 20px;
+  border-radius: 12px;
+  max-width: 400px;
+  text-align: center;
+  background: url('/new/tournament/t3e.png') center/cover no-repeat;
+}
+
+.tutorial-next-wrapper {
+  position: relative;
+  display: inline-block;
+  cursor: pointer;
+  margin-top: 15px;
+}
+
+.tutorial-next-img {
+  display: block;
+  width: 140px; /* adjust size as needed */
+  height: 50px;
+}
+
+.tutorial-next-text {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: #fff;
+  font-weight: bold;
+  pointer-events: none;
+  font-size: 16px; /* adjust as needed */
+}
+
+/* -------------------- Pulse Animations -------------------- */
+@keyframes pulseBorder {
+  0%,
+  100% {
+    border-color: #ff9800;
+    box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.6);
+  }
+  50% {
+    border-color: #ffd700;
+    box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.4);
+  }
+}
+
+@keyframes pulseStats {
+  0%,
+  100% {
+    transform: scale(1);
+    background-color: rgba(255, 255, 0, 0);
+  }
+  50% {
+    transform: scale(1.3);
+    background-color: rgb(0, 0, 0);
+  }
+}
+
+/* -------------------- Card Stats -------------------- */
+.tutorial-card-stats {
+  background-color: rgba(255, 255, 0, 0.7);
+  padding: 2px 4px;
+  border-radius: 4px;
+}
+
+.defaultDeck-card img,
+.defaultDeck-card span {
+  pointer-events: none; /* so click goes to parent div */
+}
+.tutorial-step4 .defaultDeck-card.tutorial-single-card-step2 {
+  pointer-events: auto !important;
+  cursor: pointer; /* optional: show it's clickable */
+}

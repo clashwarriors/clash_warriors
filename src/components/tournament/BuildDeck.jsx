@@ -5,7 +5,7 @@ import {
   getCards,
   storeUserData,
   getUserData,
-} from '../../utils/indexedDBService' // Adjusted import for IndexedDB service
+} from '../../utils/indexedDBService'
 import frostGuard from './assets/frostguard.png'
 import starivya from './assets/starviya.png'
 import stormscaller from './assets/stormscaller.png'
@@ -22,10 +22,11 @@ const BuildDeck = ({ user }) => {
   const [userCards, setUserCards] = useState([])
   const [selectedCharacter, setSelectedCharacter] = useState('Select Character')
   const [isOpen, setIsOpen] = useState(false)
-  const [isProcessing, setIsProcessing] = useState(false) // ⬅️ New!
+  const [isProcessing, setIsProcessing] = useState(false)
   const [showWarning, setShowWarning] = useState(true)
+  const [tutorialStep, setTutorialStep] = useState(0)
   const selectorRef = useRef(null)
-  const navigate = useNavigate() // React Router's navigate hook
+  const navigate = useNavigate()
 
   const characters = useMemo(
     () => [
@@ -40,12 +41,11 @@ const BuildDeck = ({ user }) => {
 
   const normalize = (str) => str.toLowerCase().replace(/[^a-z0-9]/g, '')
 
-  // Fetch cards from IndexedDB
+  // Fetch cards
   const fetchCards = useCallback(async () => {
     if (!user?.userId) return
-
     try {
-      const cardsData = await getCards() // Fetch all cards from IndexedDB
+      const cardsData = await getCards()
       const tempDefault = []
       const tempAvailable = []
 
@@ -56,9 +56,8 @@ const BuildDeck = ({ user }) => {
         )
         const cardWithStats = { ...card, totalStats }
 
-        if (card.defaultDeck) {
-          tempDefault.push(cardWithStats)
-        } else if (
+        if (card.defaultDeck) tempDefault.push(cardWithStats)
+        else if (
           selectedCharacter === 'Select Character' ||
           normalize(card.name).includes(normalize(selectedCharacter))
         ) {
@@ -66,7 +65,7 @@ const BuildDeck = ({ user }) => {
         }
       })
 
-      setDefaultCards(tempDefault.slice(0, 10)) // Limit 10
+      setDefaultCards(tempDefault.slice(0, 10))
       setUserCards(tempAvailable)
     } catch (error) {
       console.error('Error fetching cards:', error)
@@ -77,6 +76,7 @@ const BuildDeck = ({ user }) => {
     fetchCards()
   }, [fetchCards])
 
+  // Handle card selection
   const handleCardSelect = async (card) => {
     if (!user?.userId || isProcessing) return
     if (defaultCards.length >= 10) {
@@ -87,21 +87,15 @@ const BuildDeck = ({ user }) => {
     setIsProcessing(true)
     try {
       triggerHapticFeedback()
-
-      // 1. Update card defaultDeck to true in IndexedDB
       card.defaultDeck = true
-      await storeCards([card]) // Update the card in IndexedDB
+      await storeCards([card])
 
-      // 2. Fetch user data and current synergy
       const userData = await getUserData()
       const currentSynergy = userData?.totalSynergy || 0
-
-      // 3. Update synergy in IndexedDB
       const newSynergy = currentSynergy + (card.totalStats || 0)
-      const updatedUserData = { ...userData, totalSynergy: newSynergy }
-      await storeUserData(updatedUserData)
+      await storeUserData({ ...userData, totalSynergy: newSynergy })
 
-      await fetchCards() // Refresh cards
+      await fetchCards()
     } catch (error) {
       console.error('Error selecting card:', error)
     } finally {
@@ -109,27 +103,33 @@ const BuildDeck = ({ user }) => {
     }
   }
 
+  // Tutorial-aware card selection
+  const handleCardSelectTutorial = async (card, index) => {
+    // 1️⃣ Select the card normally
+    await handleCardSelect(card)
+
+    // 2️⃣ Stop the tutorial if step 4
+    if (tutorialStep === 4) {
+      setTutorialStep(0) // hide the overlay
+      localStorage.setItem('builddeck-tut', 'true') // mark tutorial done
+      console.log('Tutorial completed!')
+    }
+  }
+
   const handleRemoveCard = async (card) => {
     if (!user?.userId || isProcessing) return
-
     setIsProcessing(true)
     try {
       dropHapticFeedback()
-
-      // 1. Update card defaultDeck to false in IndexedDB
       card.defaultDeck = false
-      await storeCards([card]) // Update the card in IndexedDB
+      await storeCards([card])
 
-      // 2. Fetch user data and current synergy
       const userData = await getUserData()
       const currentSynergy = userData?.totalSynergy || 0
+      const newSynergy = Math.max(0, currentSynergy - (card.totalStats || 0))
+      await storeUserData({ ...userData, totalSynergy: newSynergy })
 
-      // 3. Update synergy in IndexedDB (subtract card's stats)
-      const newSynergy = Math.max(0, currentSynergy - (card.totalStats || 0)) // avoid negative
-      const updatedUserData = { ...userData, totalSynergy: newSynergy }
-      await storeUserData(updatedUserData)
-
-      await fetchCards() // Refresh cards
+      await fetchCards()
     } catch (error) {
       console.error('Error removing card:', error)
     } finally {
@@ -139,34 +139,47 @@ const BuildDeck = ({ user }) => {
 
   useEffect(() => {
     const handleClickOutside = (event) => {
-      if (selectorRef.current && !selectorRef.current.contains(event.target)) {
+      if (selectorRef.current && !selectorRef.current.contains(event.target))
         setIsOpen(false)
-      }
     }
-
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
-  // Detect navigation (leave page)
-
   useEffect(() => {
     const handleBeforeUnload = (event) => {
-      // Custom logic when the user leaves the page
       console.log('User is leaving the page!')
-      // Optionally, trigger a save or cleanup here
-      // event.returnValue = 'Are you sure you want to leave?'; // Uncomment for confirmation
     }
-
-    // Attach the beforeunload event listener
     window.addEventListener('beforeunload', handleBeforeUnload)
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload)
+  }, [])
 
-    // Cleanup when the component is unmounted or when the event listener is no longer needed
-    return () => {
-      window.removeEventListener('beforeunload', handleBeforeUnload)
-      console.log('Component unmounted or user navigated away.')
+  useEffect(() => {
+    // Check if tutorial has been completed
+    const tutDone = localStorage.getItem('builddeck-tut')
+    if (!tutDone) {
+      setTutorialStep(1) // start tutorial
+    } else {
+      setTutorialStep(0) // skip tutorial
     }
   }, [])
+
+  // Tutorial overlay component
+  const TutorialOverlay = ({ message, onNext }) => (
+    <div className="tutorial-overlay">
+      <div className="tutorial-box">
+        <p className="tutorial-message">{message}</p>
+        <div className="tutorial-next-wrapper" onClick={onNext}>
+          <img
+            src="/new/tournament/tournamentBtnTemp.png"
+            alt="Next"
+            className="tutorial-next-img"
+          />
+          <span className="tutorial-next-text">Next</span>
+        </div>
+      </div>
+    </div>
+  )
 
   return (
     <div className="defaultDeck-container">
@@ -178,7 +191,6 @@ const BuildDeck = ({ user }) => {
         >
           <img src="/right.png" alt="Toggle" className="selector-toggle-icon" />
         </button>
-
         {isOpen && (
           <div className="selector-container" ref={selectorRef}>
             {characters.map((char) => (
@@ -198,18 +210,40 @@ const BuildDeck = ({ user }) => {
             ))}
           </div>
         )}
-
         <span className="selector-selected-name">{selectedCharacter}</span>
       </div>
 
-      <div className="defaultDeck-allCards">
+      {/* User Cards Section */}
+      <div
+        className={`defaultDeck-allCards ${
+          tutorialStep === 1 ? 'tutorial-highlight' : ''
+        }`}
+      >
         {userCards.length > 0 ? (
-          <div className="defaultDeck-grid">
+          <div
+            className={`defaultDeck-grid ${
+              tutorialStep === 2 ? 'tutorial-step2' : ''
+            } ${tutorialStep === 3 ? 'tutorial-step3' : ''} ${
+              tutorialStep === 4 ? 'tutorial-step4' : ''
+            }`}
+          >
             {userCards.map((card, index) => (
               <div
-                key={card.id || `card-${index}`} // Use card.id or fallback to index
-                className="defaultDeck-card"
-                onClick={() => handleCardSelect(card)}
+                key={card.id || `card-${index}`}
+                className={`defaultDeck-card ${
+                  tutorialStep === 2 || tutorialStep === 3 || tutorialStep === 4
+                    ? index === 0
+                      ? 'tutorial-single-card-step2'
+                      : 'tutorial-dim-card'
+                    : ''
+                }`}
+                onClick={() => {
+                  if (tutorialStep === 4 && index === 0) {
+                    handleCardSelectTutorial(card, index)
+                  } else if (tutorialStep === 0) {
+                    handleCardSelect(card)
+                  }
+                }}
               >
                 <img
                   src={card.photo}
@@ -217,7 +251,15 @@ const BuildDeck = ({ user }) => {
                   className="defaultDeck-image"
                   loading="lazy"
                 />
-                <span className="defaultDeck-stats">{card.totalStats}</span>
+                <span
+                  className={`defaultDeck-stats ${
+                    tutorialStep === 3 && index === 0
+                      ? 'tutorial-card-stats'
+                      : ''
+                  }`}
+                >
+                  {card.totalStats}
+                </span>
               </div>
             ))}
           </div>
@@ -226,7 +268,25 @@ const BuildDeck = ({ user }) => {
         )}
       </div>
 
-      {/* Default Deck Cards */}
+      {/* Tutorial Overlay */}
+      {tutorialStep > 0 && tutorialStep < 4 && (
+        <TutorialOverlay
+          message={
+            tutorialStep === 1
+              ? 'Commander, here stands your Army of Warriors! Each brave fighter is ready to march into battle.'
+              : tutorialStep === 2
+                ? 'Focus on this warrior, noble leader. Its strength and skills will turn the tide of war.'
+                : tutorialStep === 3
+                  ? 'These are the warrior’s battle stats. Know their power, for it will guide your strategy.'
+                  : 'Select this warrior to enlist it into your Army of Warriors and prepare for glorious conquest!'
+          }
+          onNext={() => {
+            if (tutorialStep < 4) setTutorialStep((prev) => prev + 1)
+          }}
+        />
+      )}
+
+      {/* Default Deck */}
       <div className="defaultDeck-bottom">
         <div className="defaultDeck-grid">
           {[...defaultCards, ...Array(10 - defaultCards.length).fill(null)].map(
@@ -253,7 +313,7 @@ const BuildDeck = ({ user }) => {
                 </div>
               ) : (
                 <div
-                  key={`placeholder-${index}`} // Use index for the placeholder key
+                  key={`placeholder-${index}`}
                   className="defaultDeck-placeholder"
                 >
                   <span>Empty Slot</span>
@@ -263,6 +323,7 @@ const BuildDeck = ({ user }) => {
         </div>
       </div>
 
+      {/* Warning Overlay */}
       {defaultCards.length + userCards.length < 10 && (
         <div className="builddeck-overlay">
           <div className="deck-warning-modal">
@@ -274,10 +335,7 @@ const BuildDeck = ({ user }) => {
               >
                 Buy Cards
               </button>
-              <button
-                className="cancel-btn"
-                onClick={() => navigate(-1)} // 👈 go back
-              >
+              <button className="cancel-btn" onClick={() => navigate(-1)}>
                 Go Back
               </button>
             </div>
