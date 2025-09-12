@@ -1,8 +1,16 @@
-import React, { useEffect, useState, useRef } from 'react'
-import axios from 'axios'
+import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { ref, set, remove, onValue, get } from 'firebase/database'
 import { realtimeDB } from '../firebase'
+import {
+  ref,
+  query,
+  orderByChild,
+  equalTo,
+  onChildAdded,
+  off,
+  onValue,
+  get,
+} from 'firebase/database'
 import DefaultDeckModal from './tournament/DefaultDeckModal'
 import './tournament/style/tournament.style.css'
 import {
@@ -12,10 +20,9 @@ import {
   loadFramesIntoMemory,
 } from './tournament/utils/indexedDBHelper'
 import { triggerHapticFeedback } from './tournament/utils/haptic'
-import { createOfflineMatch } from './tournament/gameUtils/matchMaker'
 import CachedImage from './Shared/CachedImage'
 import { getAllCardsByRarity } from '../utils/cardsStorer'
-import CustomAlert from './tournament/gameUtils//CustomAlert'
+import { getUserData } from '../utils/indexedDBService'
 
 const Tournament = ({ user }) => {
   // eslint-disable-next-line no-unused-vars
@@ -275,18 +282,53 @@ const Tournament = ({ user }) => {
     navigate('/builddeck')
   }
 
-  // const handlePlayNow = async () => {
-  //   const match = await createOfflineMatch(user)
-  //   navigate(`/battle/${match.matchID}`)
-  // }
-
   const handlePlayNow = async () => {
     try {
-      const match = await createOfflineMatch(user)
-      navigate(`/battle/${match.matchID}`)
+      const userData = await getUserData()
+      if (!userData) return setAlertMessage('User data not found!')
+
+      const response = await fetch(
+        'http://localhost:5000/api/matchmaking/addToQueue',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId: userData.userId,
+            userName: userData.username,
+            synergy: userData.totalSynergy,
+          }),
+        }
+      )
+
+      const data = await response.json()
+      if (!data.success) {
+        console.log('User already in queue or failed to add:', data.message)
+        return
+      }
+      console.log('User added to matchmaking queue:', data.queueId)
+
+      // Listen for battle creation for this user
+      const battlesRef = ref(realtimeDB, 'battles')
+      const userQuery = query(
+        battlesRef,
+        orderByChild('player1/playerId'),
+        equalTo(userData.userId)
+      )
+
+      const listener = onChildAdded(userQuery, (snapshot) => {
+        const battle = snapshot.val()
+        console.log('Match found:', battle.matchId)
+
+        // Navigate to tournament page with matchId
+        navigate(`/battle/${battle.matchId}`, {
+          state: { matchId: battle.matchId },
+        })
+
+        // Stop listening after match is found
+        off(userQuery, 'child_added', listener)
+      })
     } catch (error) {
-      // Show alert if deck is incomplete
-      setAlertMessage(error.message)
+      console.error(error)
     }
   }
 

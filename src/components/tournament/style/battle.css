@@ -202,50 +202,21 @@
   box-shadow: 0 0 16px rgba(255, 255, 255, 0.4);
 }
 
-@keyframes cardDropEffect {
-  0% {
-    transform: translateY(-50px) scale(1.05);
-    opacity: 0.7;
-  }
-  60% {
-    transform: translateY(10px) scale(1);
-    opacity: 1;
-  }
-  100% {
-    transform: translateY(0);
-  }
-}
-
-.card-dropping {
-  animation: cardDropEffect 0.4s ease-out;
-}
-
-@keyframes screen-shake {
-  0% {
-    transform: translate(0, 0);
-  }
-  25% {
-    transform: translate(-4px, 2px);
-  }
-  50% {
-    transform: translate(3px, -3px);
-  }
-  75% {
-    transform: translate(-2px, 4px);
-  }
-  100% {
-    transform: translate(0, 0);
-  }
-}
-
-.battle-container.shake {
-  animation: screen-shake 0.3s ease;
-}
-
 .deck-card.disabled {
   opacity: 0.4;
   pointer-events: none;
   cursor: not-allowed;
+}
+
+.deck-card.used {
+  opacity: 0.4;
+  pointer-events: none; /* no clicks */
+  cursor: not-allowed; /* show disabled cursor */
+  transform: none !important; /* stop zoom effect */
+}
+
+.deck-card.used:hover {
+  transform: none !important; /* override hover zoom */
 }
 
 /* Game Finish Modal */
@@ -331,4 +302,94 @@
   pointer-events: none;
   z-index: 9998;
   transform: translateX(-50%);
+}
+
+/* Ability Popup */
+
+/* Ability Popup Overlay with Dark Background */
+.ability-popup {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(0, 0, 0, 0.85); /* darker background */
+  padding: 20px 10px;
+  border-radius: 16px;
+  z-index: 9999;
+  text-align: center;
+  color: #fff;
+  width: 90%;
+  max-width: 600px;
+  box-shadow: 0 0 25px rgba(0, 0, 0, 0.9);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* Optional: Fullscreen Dark Overlay Behind Popup */
+.ability-popup::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 500vw;
+  height: 500vh;
+  background: rgba(0, 0, 0, 0.8) !important; /* semi-transparent dim */
+  z-index: -1;
+  margin-top: -1000px;
+  margin-left: -1000px;
+}
+
+/* Title */
+.ability-popup h3 {
+  font-family: 'MedievalSharpBold', sans-serif;
+  margin-bottom: 15px;
+  font-size: 1.4rem;
+  color: #ffd700;
+}
+
+/* Grid for Abilities: 2 rows of 5 */
+.abilities-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(2, auto);
+  gap: 8px;
+  justify-items: center;
+  align-items: center;
+}
+
+/* Ability Button (just image, no border/padding) */
+.ability-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.ability-btn img {
+  width: 70px;
+  height: 70px;
+  object-fit: cover;
+  display: block;
+}
+
+.deck-card.used,
+.ability-btn.used {
+  pointer-events: none;
+  opacity: 0.4;
+}
+
+.ability-btn.disabled {
+  opacity: 0.4; /* faded */
+  pointer-events: none; /* prevent clicks */
+  filter: grayscale(70%); /* optional: make it look greyed out */
+  transition:
+    opacity 0.3s,
+    filter 0.3s;
+}
+
+.ability-btn.selected {
+  border: 2px solid #ffd700; /* highlight selected ability */
 }

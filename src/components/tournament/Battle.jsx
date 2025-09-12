@@ -1,447 +1,330 @@
 import { useParams, useNavigate } from 'react-router-dom'
 import { useEffect, useState, useRef } from 'react'
-import { ref, set as dbSet, update, get } from 'firebase/database'
-import { realtimeDB } from '../../firebase'
+import { ref, onValue, off } from 'firebase/database'
 import {
   showRewardedInterstitialAd1K,
   showRewardedInterstitialAd10K,
 } from './utils/adsUtility'
 import './style/battle.css'
-import botNames from './gameUtils/botName.json'
-import { getUserData, storeUserData } from '../../utils/indexedDBService'
-
+import { getCards } from '../../utils/indexedDBService'
 import cardHolder from '/assets/gameLogo.avif'
 import summonLeft from './assets/leftSummon.png'
 import summonRight from './assets/rightSummon.png'
-
-import endBattleBtn from './assets/endBattleBtn.png'
-import endRoundBtn from './assets/endRoundBtn.png'
-
-import cooldownBadge from './assets/phase/cooldown.png'
-import selectionBadge from './assets/phase/selection.png'
-import battleBadge from './assets/phase/battle.png'
-import cancelledBadge from './assets/phase/cancelled.png'
-
 import { playStoredAudio } from './utils/audioUtils'
 import { dropHapticFeedback } from './utils/haptic'
-import {
-  getCurrentPhase,
-  getCurrentRound,
-  PHASES,
-  ROUND_DURATION_MS,
-  ROUND_TOTAL_TIME,
-  MATCH_TOTAL_TIME,
-  selectRandomCard,
-  manualEndRound,
-} from './gameUtils/gameLogic'
-import { set } from 'idb-keyval'
+import { realtimeDB } from '../../firebase'
 import { getFrames } from './utils/indexedDBHelper'
-
 import CachedImage from '../shared/CachedImage'
 
-const roundStore = {} // Local memory store for user and bot card selections
+const PHASES = {
+  COOLDOWN: 'cooldown',
+  SELECTION: 'selection',
+  BATTLE: 'battle',
+  CANCELLED: 'cancelled',
+}
+
+const PHASE_TIMERS = {
+  cooldown: 5000,
+  selection: 1000000,
+  battle: 10000,
+}
+
+const ABILITIES = {
+  AEGIS_WARD: 'Aegis Ward',
+  ARCANE_OVERCHARGE: 'Arcane Overcharge',
+  BERSERKERS_FURY: 'Berserkers Fury',
+  CELESTIAL_REJUVENATION: 'Celestial Rejuvenation',
+  FURY_UNLEASHED: 'Fury Unleashed',
+  GUARDIANS_BULWARK: "Guardian's Bulwark",
+  MINDWRAP: 'Mind Wrap',
+  SOUL_LEECH: 'Soul Leech',
+  TITAN_STRIKE: "Titan's Strike",
+  TWIN_STRIKE: 'Twin Strike',
+}
 
 const Battle = ({ user }) => {
   const { matchID } = useParams()
   const navigate = useNavigate()
+  const userId = user?.userId
   const [match, setMatch] = useState(null)
   const [phase, setPhase] = useState(PHASES.COOLDOWN)
   const [remainingTime, setRemainingTime] = useState(0)
   const [selectedCard, setSelectedCard] = useState(null)
-  const [botSelectedCard, setBotSelectedCard] = useState(null)
+  const [player2SelectedCard, setPlayer2SelectedCard] = useState(null)
   const [dropFrames, setDropFrames] = useState([])
   const [frameIndex, setFrameIndex] = useState(0)
   const [animating, setAnimating] = useState(false)
-  const [botAnimating, setBotAnimating] = useState(false)
-  const [botFrameIndex, setBotFrameIndex] = useState(0)
+  const [player2Animating, setPlayer2Animating] = useState(false)
+  const [player2FrameIndex, setPlayer2FrameIndex] = useState(0)
   const [showFinishedModal, setShowFinishedModal] = useState(false)
-  const [totalSynergy, setTotalSynergy] = useState({ user: 0, bot: 0 })
   const [animationDirection, setAnimationDirection] = useState(null)
-  const [finalResult, setFinalResult] = useState(null)
   const [directionalFrames, setDirectionalFrames] = useState([])
   const [directionFrameIndex, setDirectionFrameIndex] = useState(0)
-  const [botName, setBotName] = useState('user123')
+  const [player1Name, setPlayer1Name] = useState('')
+  const [player2Name, setPlayer2Name] = useState('maybe')
+  const [showAbilityPopup, setShowAbilityPopup] = useState(false)
+  const [selectedAbility, setSelectedAbility] = useState(null)
+  const [finalResult, setFinalResult] = useState(null)
+  const [playerDeck, setPlayerDeck] = useState([])
+  const [player1Hp, setPlayer1Hp] = useState(0)
+  const [player2Hp, setPlayer2Hp] = useState(0)
+  const [player1Role, setPlayer1Role] = useState('attack')
+  const [player2Role, setPlayer2Role] = useState('defense')
+  const [isPlayer1, setIsPlayer1] = useState(null)
+  const [player1Ability, setPlayer1Ability] = useState(null)
+  const [player2Ability, setPlayer2Ability] = useState(null)
+  const [currentRound, setCurrentRound] = useState({ player1: {}, player2: {} })
+  const [previousRounds, setPreviousRounds] = useState({
+    player1: [],
+    player2: [],
+  })
+  const [usedCardIds, setUsedCardIds] = useState([])
+  const [cardSelected, setCardSelected] = useState(false)
+  const [usedAbilities, setUsedAbilities] = useState([])
+  const [hasEndedTurn, setHasEndedTurn] = useState(false)
 
   const containerRef = useRef(null)
   const intervalRef = useRef(null)
 
   const phaseBadges = {
-    [PHASES.COOLDOWN]: cooldownBadge,
-    [PHASES.SELECTION]: selectionBadge,
-    [PHASES.BATTLE]: battleBadge,
-    [PHASES.CANCELLED]: cancelledBadge,
-    [PHASES.FINISHED]: cancelledBadge,
+    [PHASES.COOLDOWN]: '/new/battle/assets/phase/cooldown.png',
+    [PHASES.SELECTION]: '/new/battle/assets/phase/selection.png',
+    [PHASES.BATTLE]: '/new/battle/assets/phase/battle.png',
+    [PHASES.CANCELLED]: '/new/battle/assets/phase/cancelled.png',
+    [PHASES.FINISHED]: '/new/battle/assets/phase/cancelled.png', // reuse cancelled
   }
 
+  // Match Fetching and Setup
   useEffect(() => {
-    const matchData = localStorage.getItem(`match-${matchID}`)
-    if (matchData) {
-      const parsed = JSON.parse(matchData)
-      if (parsed.cancelled) navigate('/tournament')
-      else setMatch(parsed)
-    } else {
-      navigate('/tournament')
-    }
-  }, [matchID])
+    if (!matchID || !userId) return
 
-  useEffect(() => {
-    if (!match?.startTime) return
-    intervalRef.current = setInterval(() => {
-      const now = Date.now()
-      const elapsed = now - match.startTime
+    const matchRef = ref(realtimeDB, `battles/${matchID}`)
+    const unsubscribe = onValue(matchRef, (snapshot) => {
+      const data = snapshot.val()
+      if (!data) return console.log('No match data found in Realtime DB')
 
-      const currentPhase = getCurrentPhase(match.startTime)
-      setPhase(currentPhase)
+      setMatch(data)
 
-      let remaining = 0
+      const playerKey =
+        data.player1?.playerId === userId ? 'player1' : 'player2'
+      const opponentKey = playerKey === 'player1' ? 'player2' : 'player1'
 
-      if (elapsed < ROUND_DURATION_MS.COOLDOWN) {
-        // First 5s = cooldown
-        remaining = Math.ceil((ROUND_DURATION_MS.COOLDOWN - elapsed) / 1000)
-      } else {
-        const postCooldownElapsed = elapsed - ROUND_DURATION_MS.COOLDOWN
-        const roundTime = postCooldownElapsed % ROUND_TOTAL_TIME
+      // 🔹 Extract HP
+      setPlayer1Hp(data.player1?.hp || 0)
+      setPlayer2Hp(data.player2?.hp || 0)
 
-        if (roundTime < ROUND_DURATION_MS.SELECTION) {
-          remaining = Math.ceil(
-            (ROUND_DURATION_MS.SELECTION - roundTime) / 1000
-          )
-        } else {
-          remaining = Math.ceil(
-            (ROUND_DURATION_MS.SELECTION +
-              ROUND_DURATION_MS.BATTLE -
-              roundTime) /
-              1000
-          )
+      // 🔹 Current round
+      const currentRoundData = data[playerKey]?.currentRound || {}
+      setCurrentRound((prev) => ({
+        ...prev,
+        [playerKey]: currentRoundData,
+      }))
+
+      // 🔹 Reset selection flags for new round
+      setCardSelected(false)
+      setSelectedAbility(null)
+      setSelectedCard(
+        currentRoundData.cardId ? { src: currentRoundData.cardPhotoSrc } : null
+      )
+      setPlayer2SelectedCard(
+        data[opponentKey]?.currentRound?.cardId
+          ? { src: data[opponentKey].currentRound.cardPhotoSrc }
+          : null
+      )
+
+      // 🔹 Names & roles
+      setPlayer1Name(data.player1?.userName || 'Player1')
+      setPlayer2Name(data.player2?.userName || 'Player2')
+      setPlayer1Role(currentRoundData.role || 'attack')
+      setPlayer2Role(data[opponentKey]?.currentRound?.role || 'defense')
+
+      // 🔹 Is logged-in user player1?
+      setIsPlayer1(playerKey === 'player1')
+
+      // 🔹 Current phase
+      if (data.currentPhase) setPhase(data.currentPhase)
+
+      // 🔹 Remaining time
+      if (data.currentPhase && data.phaseStartTime) {
+        const duration = PHASE_TIMERS[data.currentPhase] || 0
+        const updateRemainingTime = () => {
+          const elapsed = Date.now() - data.phaseStartTime
+          setRemainingTime(Math.max(0, Math.ceil((duration - elapsed) / 1000)))
         }
+        updateRemainingTime()
+        if (window._phaseTimer) clearInterval(window._phaseTimer)
+        window._phaseTimer = setInterval(updateRemainingTime, 1000)
       }
 
-      setRemainingTime(remaining)
+      // 🔹 Used cards & abilities
+      const previousRoundsObj = data[playerKey]?.previousRounds || {}
 
-      if (elapsed > MATCH_TOTAL_TIME) {
-        setPhase(PHASES.FINISHED)
-        setShowFinishedModal(true)
-        clearInterval(intervalRef.current)
-        setTimeout(async () => {
-          localStorage.removeItem(`match-${matchID}`)
-          await showRewardedInterstitialAd1K(user.userId)
-          navigate('/tournament')
-        }, 10000)
-      }
-    }, 1000)
+      // Convert object to array
+      const previousRoundsArr = Object.values(previousRoundsObj)
 
-    return () => clearInterval(intervalRef.current)
-  }, [match?.startTime])
+      const currentRoundAbility = currentRoundData.abilitySelected || null
 
-  const cancelMatch = () => {
-    clearInterval(intervalRef.current)
+      // Combine previous rounds abilities + current round ability
+      const allUsedAbilities = [
+        ...previousRoundsArr.map((r) => r.ability).filter(Boolean),
+        currentRoundAbility,
+      ]
 
-    const updatedMatch = {
-      ...match,
-      cancelled: true,
-      cancelledAt: Date.now(),
-      phase: PHASES.CANCELLED,
-    }
+      setUsedAbilities(allUsedAbilities)
 
-    localStorage.setItem(`match-${matchID}`, JSON.stringify(updatedMatch))
-    setMatch(updatedMatch)
-    setPhase(PHASES.CANCELLED)
+      // Only previous rounds → block cards used in past rounds, not current round
+      const usedCards = previousRoundsArr.map((r) => r.cardId).filter(Boolean)
+      const usedAbilities = previousRoundsArr
+        .map((r) => r.ability)
+        .filter(Boolean)
 
-    setTimeout(() => {
-      localStorage.removeItem(`match-${matchID}`)
-      navigate('/tournament')
-
-      // ⬇️ Show ad after navigating
-      showRewardedInterstitialAd1K(user.userId)
-    }, 1500)
-  }
-
-  useEffect(() => {
-    const request = indexedDB.open('AnimationDB', 1)
-    request.onsuccess = () => {
-      const db = request.result
-      const tx = db.transaction('frames', 'readonly')
-      const store = tx.objectStore('frames')
-      const frames = []
-      store.openCursor().onsuccess = (e) => {
-        const cursor = e.target.result
-        if (cursor && cursor.key.startsWith('7200')) {
-          frames.push({ key: cursor.key, src: cursor.value })
-          cursor.continue()
-        } else {
-          const sorted = frames
-            .sort((a, b) => a.key.localeCompare(b.key))
-            .map((f) => f.src)
-          setDropFrames(sorted)
-        }
-      }
-    }
-  }, [])
-
-  useEffect(() => {
-    if (animating) {
-      const interval = setInterval(() => {
-        setFrameIndex((prev) => {
-          if (prev >= dropFrames.length - 1) {
-            clearInterval(interval)
-            setAnimating(false)
-            return prev
-          }
-          return prev + 1
-        })
-      }, 40)
-      return () => clearInterval(interval)
-    }
-  }, [animating, dropFrames])
-
-  useEffect(() => {
-    if (botNames?.length > 0) {
-      const random = botNames[Math.floor(Math.random() * botNames.length)]
-      setBotName(random)
-    }
-  }, [])
-
-  useEffect(() => {
-    if (botAnimating) {
-      const interval = setInterval(() => {
-        setBotFrameIndex((prev) => {
-          if (prev >= dropFrames.length - 1) {
-            clearInterval(interval)
-            setBotAnimating(false)
-            return prev
-          }
-          return prev + 1
-        })
-      }, 40)
-      return () => clearInterval(interval)
-    }
-  }, [botAnimating, dropFrames])
-
-  const handleCardClick = (card) => {
-    if (phase !== PHASES.SELECTION || selectedCard) return
-
-    const round = getCurrentRound(match.startTime)
-    if (!roundStore[matchID]) roundStore[matchID] = { rounds: [] }
-    if (!roundStore[matchID].rounds[round])
-      roundStore[matchID].rounds[round] = {}
-
-    roundStore[matchID].rounds[round].userCard = card
-    setSelectedCard(card)
-    setFrameIndex(0)
-    setAnimating(true)
-    playStoredAudio('gameDropSound')
-    dropHapticFeedback()
-
-    // Update synergy for the user
-    setTotalSynergy((prev) => {
-      const updated = { ...prev, user: prev.user + (card.synergy || 0) }
-      return updated
+      setPreviousRounds({ [playerKey]: previousRoundsObj })
+      setUsedCardIds(usedCards)
+      setUsedAbilities(usedAbilities)
     })
 
-    // We no longer trigger the bot card selection here. It will be handled in the useEffect.
-  }
+    return () => {
+      off(matchRef)
+      if (window._phaseTimer) clearInterval(window._phaseTimer)
+    }
+  }, [matchID, userId])
 
+  // Deck Managment
   useEffect(() => {
-    if (phase === PHASES.SELECTION) {
-      const round = getCurrentRound(match.startTime)
-      setSelectedCard(null)
-      setBotSelectedCard(null)
-      setDirectionFrameIndex(0)
-      setAnimationDirection(null)
-      if (!roundStore[matchID]) roundStore[matchID] = { rounds: [] }
-      if (!roundStore[matchID].rounds[round])
-        roundStore[matchID].rounds[round] = {}
-
-      const botAlreadyPlayed = roundStore[matchID].rounds[round].botCard
-      roundStore[matchID].rounds[round].botEndedRound = true
-
-      if (!botAlreadyPlayed) {
-        const delay = 2000 + Math.floor(Math.random() * 3000)
-        setTimeout(() => {
-          const botCard = selectRandomCard(match.player1Deck)
-          roundStore[matchID].rounds[round].botCard = botCard
-          setBotSelectedCard(botCard)
-          setBotFrameIndex(0)
-          setBotAnimating(true)
-          playStoredAudio('gameDropSound')
-          dropHapticFeedback()
-
-          // Update synergy for the bot
-          setTotalSynergy((prev) => {
-            const updated = { ...prev, bot: prev.bot + (botCard.synergy || 0) }
-            return updated
-          })
-        }, delay)
+    const fetchDefaultDeck = async () => {
+      try {
+        const allCards = await getCards()
+        // Filter only defaultDeck cards
+        const defaultDeckCards = allCards.filter((card) => card.defaultDeck)
+        setPlayerDeck(defaultDeckCards)
+      } catch (err) {
+        console.error('Failed to fetch cards:', err)
       }
     }
-  }, [phase, match?.startTime])
 
-  useEffect(() => {
-    if (phase !== PHASES.BATTLE) return
+    fetchDefaultDeck()
+  }, [])
 
-    const round = getCurrentRound(match.startTime)
-    const data = roundStore[matchID]?.rounds?.[round]
+  // Card Selection Handler
+  const handleCardClick = async (card) => {
+    if (phase !== PHASES.SELECTION || cardSelected) return // block extra clicks
 
-    if (data?.userCard && data?.botCard) {
-      const userSynergy = data.userCard.synergy || 0
-      const botSynergy = data.botCard.synergy || 0
-
-      if (userSynergy > botSynergy) {
-        setAnimationDirection('rtl')
-        playStoredAudio('gameAttackMusic')
-        console.log(
-          `📊 Round ${round} direction:`,
-          userSynergy,
-          'vs',
-          botSynergy,
-          '→ rtl'
-        )
-      } else if (botSynergy > userSynergy) {
-        setAnimationDirection('ltr')
-        playStoredAudio('gameAttackMusic')
-        console.log(
-          `📊 Round ${round} direction:`,
-          userSynergy,
-          'vs',
-          botSynergy,
-          '→ ltr'
-        )
-      } else {
-        setAnimationDirection('neutral')
-        setDirectionalFrames([]) // clear previous frames just in case
-        setDirectionFrameIndex(0)
-      }
-    }
-  }, [phase])
-
-  useEffect(() => {
-    if (phase !== PHASES.FINISHED || !user?.userId) return
-
-    const rounds = roundStore[matchID]?.rounds || []
-    let finalUserSynergy = 0
-    let finalBotSynergy = 0
-
-    for (const r of rounds) {
-      finalUserSynergy += r.userCard?.synergy || 0
-      finalBotSynergy += r.botCard?.synergy || 0
-    }
-
-    console.log(
-      '🏁 Final Totals — User:',
-      finalUserSynergy,
-      'Bot:',
-      finalBotSynergy
-    )
-
-    let result = 'tie'
-    let rewardCoins = 5000
-
-    if (finalUserSynergy > finalBotSynergy) {
-      console.log('🎉 Final Result: User wins! (right-to-left animation)')
-      result = 'user'
-      rewardCoins = 10000
-    } else if (finalBotSynergy > finalUserSynergy) {
-      console.log('🤖 Final Result: Bot wins! (left-to-right animation)')
-      result = 'bot'
-      rewardCoins = 0
-    } else {
-      console.log('⚖️ Final Result: Tie!')
-    }
-
-    setFinalResult(result)
-
-    if (rewardCoins > 0) {
-      // Use your indexedDBService functions here:
-      getUserData(user.userId)
-        .then((data) => {
-          const currentCoins = data?.coins || 0
-          return storeUserData(user.userId, currentCoins + rewardCoins)
-        })
-        .then(() => {
-          console.log(`✅ ${rewardCoins} coins awarded to user locally.`)
-        })
-        .catch((err) => {
-          console.error('❌ Error updating local coins:', err)
-        })
-    }
-  }, [phase])
-
-  const handleEndRound = () => {
-    if (phase !== PHASES.SELECTION || !selectedCard) return
-
-    const round = getCurrentRound(match.startTime)
-
-    // Mark user as ended in backend store
-    const shouldStartBattle = manualEndRound(matchID, round)
-
-    // Update frontend store too (optional, for UI)
-    if (!roundStore[matchID]?.rounds[round]) return
-    roundStore[matchID].rounds[round].userEndedRound = true
-
-    // Transition to BATTLE phase only if both ended
-    if (shouldStartBattle) {
-      setPhase(PHASES.BATTLE)
-    } else {
-      console.log('🕒 Waiting for bot to finish selection...')
-    }
-  }
-
-  useEffect(() => {
-    if (
-      phase !== PHASES.BATTLE ||
-      !animationDirection ||
-      animationDirection === 'neutral'
-    )
-      return
-
-    const frames =
-      animationDirection === 'rtl' ? getFrames('rtl') : getFrames('ltr')
-
-    if (frames.length > 0) {
-      console.log(
-        `[MEMORY] Loaded ${frames.length} frames from ${animationDirection.toUpperCase()} cache`
-      )
-      setDirectionalFrames(frames)
-      setDirectionFrameIndex(0)
-    } else {
-      console.warn(
-        `[MEMORY] No frames found for direction: ${animationDirection}`
-      )
-    }
-  }, [animationDirection, phase])
-
-  useEffect(() => {
-    if (!directionalFrames.length || phase !== PHASES.BATTLE) return
-
-    const interval = setInterval(() => {
-      setDirectionFrameIndex((prev) => {
-        if (prev >= directionalFrames.length - 1) {
-          clearInterval(interval)
-          // Reset frame data after animation ends
-          setDirectionalFrames([])
-          return 0 // reset frame index to 0 to prevent stuck on last frame
+    try {
+      const res = await fetch(
+        `http://localhost:5000/api/battle/${matchID}/select-card`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            playerId: userId,
+            cardId: card.cardId,
+            photo: card.photo,
+            stats: card.stats,
+          }),
         }
-        return prev + 1
+      )
+
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Failed to select card')
+
+      console.log('Card selected successfully:', data)
+      setShowAbilityPopup(true)
+      setCardSelected(true) // prevent re-select until next round
+    } catch (err) {
+      console.error('Failed to select card:', err)
+    }
+  }
+
+  const handleAbilityClick = async (abilityKey) => {
+    if (phase !== PHASES.SELECTION) return
+    if (!match || !userId) return console.error('No match or userId available')
+
+    try {
+      const isPlayer1 = match.player1.playerId === userId
+      const playerKey = isPlayer1 ? 'player1' : 'player2'
+
+      const res = await fetch(
+        `http://localhost:5000/api/battle/${matchID}/select-ability`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ playerId: userId, abilityKey }),
+        }
+      )
+
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Failed to select ability')
+
+      console.log(`Ability ${abilityKey} selected successfully:`, data)
+
+      // ✅ Update local state for UI
+      if (isPlayer1) setPlayer1Ability(abilityKey)
+      else setPlayer2Ability(abilityKey)
+
+      // ✅ Also update selectedAbility for button enable
+      setSelectedAbility(abilityKey)
+
+      setShowAbilityPopup(false)
+    } catch (err) {
+      console.error('Failed to select ability:', err)
+    }
+  }
+
+  // End Round
+  const handleEndRound = async () => {
+    console.log('End Round clicked')
+
+    if (!matchID || !user.userId) return
+
+    try {
+      const res = await fetch('http://localhost:5000/api/battle/endTurn', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ matchId: matchID, playerId: user.userId }),
       })
-    }, 60)
 
-    return () => clearInterval(interval)
-  }, [directionalFrames, phase])
+      const data = await res.json()
+      if (data.success) console.log('Turn ended successfully!')
+    } catch (err) {
+      console.error('Failed to end turn:', err)
+    }
+  }
 
-  if (!match) return <div>Loading battle...</div>
+  // Cancel Match
+  const cancelMatch = async () => {
+    if (!matchID || !user.userId) return
+
+    try {
+      await fetch('http://localhost:5000/api/battle/cancel', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ matchId: matchID, playerId: user.userId }),
+      })
+
+      console.log('Match cancelled, leaving tournament')
+      localStorage.removeItem('currentMatchId')
+      navigate('/tournament') // redirect to tournament page
+    } catch (err) {
+      console.error('Failed to cancel match:', err)
+    }
+  }
 
   return (
     <div className="battle-container" ref={containerRef}>
       <div className="battle-header">
         <div className="battle-header-left">
           <img src={user.photo_url} alt="Player Avatar" className="avatar" />
-          <p>{match.playerName}</p>
+          <p>{player1Name} HP</p>
+          <p>{player1Hp}</p>
+          <p>{player1Role}</p>
         </div>
         <div className="battle-header-center">
           <p className="battle-timer">{remainingTime}s</p>
         </div>
         <div className="battle-header-right">
-          <p>{botName}</p>
+          <p>{player2Name}</p>
+          <p>{player2Hp}</p>
+          <p>{player2Role}</p>
           <img src="/assets/gameLogo.avif" className="avatar" />
         </div>
       </div>
@@ -461,8 +344,8 @@ const Battle = ({ user }) => {
                 top: '-50%',
                 left: '50%',
                 transform: 'translateX(-50%)',
-                width: '430px',
-                height: '420px',
+                width: 430,
+                height: 420,
                 zIndex: 2,
                 pointerEvents: 'none',
               }}
@@ -480,66 +363,74 @@ const Battle = ({ user }) => {
             className="summon-img glow-orange"
           />
         </div>
-
         <div
           className="summon-wrapper summon-right"
           style={{ position: 'relative' }}
         >
-          {botSelectedCard && botAnimating && dropFrames.length > 0 && (
+          {player2SelectedCard && player2Animating && dropFrames.length > 0 && (
             <img
-              src={dropFrames[botFrameIndex]}
-              alt="Bot Drop Animation"
+              src={dropFrames[player2FrameIndex]}
+              alt="Player2 Drop Animation"
               className="drop-animation-frame"
               style={{
                 position: 'absolute',
                 top: '-50%',
                 left: '50%',
                 transform: 'translateX(-50%)',
-                width: '430px',
-                height: '440px',
+                width: 430,
+                height: 440,
                 zIndex: 1,
                 pointerEvents: 'none',
               }}
             />
           )}
           <img
-            src={botSelectedCard ? botSelectedCard.src : cardHolder}
+            src={player2SelectedCard ? player2SelectedCard.src : cardHolder}
             className="card-img"
-            style={{ marginLeft: '10px' }}
+            style={{ marginLeft: 10 }}
+            alt="Player2 Card"
           />
-          <div className="glow-perspective">
-            <img
-              src={summonRight}
-              alt="Summon Ring Right"
-              className="summon-img glow-blue tilt-up"
-            />
-          </div>
+          <img
+            src={summonRight}
+            alt="Summon Ring Right"
+            className="summon-img glow-blue tilt-up"
+          />
         </div>
         {directionalFrames.length > 0 && (
           <img
             src={directionalFrames[directionFrameIndex]}
             alt="Battle Direction Animation"
             className="directional-animation"
-            style={{ marginTop: '30px' }}
+            style={{ marginTop: 30 }}
           />
         )}
       </div>
 
       <div className="deck-section">
-        {match.player1Deck.map((card, i) => (
-          <img
-            key={i}
-            src={card.src}
-            alt={`Card ${i + 1}`}
-            className={`deck-card ${phase !== PHASES.SELECTION ? 'disabled' : ''}`}
-            onClick={() => handleCardClick(card)}
-          />
-        ))}
+        {playerDeck.map((card) => {
+          // Block if used in previous rounds OR currently selected in this round
+          const isBlocked =
+            usedCardIds.includes(card.cardId) ||
+            (currentRound?.player1?.cardId === card.cardId && isPlayer1) ||
+            (currentRound?.player2?.cardId === card.cardId && !isPlayer1)
+
+          return (
+            <img
+              key={card.cardId}
+              src={card.photo}
+              alt={card.name}
+              className={`deck-card 
+          ${phase !== PHASES.SELECTION ? 'disabled' : ''} 
+          ${isBlocked ? 'used' : ''}`}
+              onClick={() => !isBlocked && handleCardClick(card)}
+            />
+          )
+        })}
       </div>
 
       <div className="battle-footer">
         <CachedImage
-          src={endBattleBtn}
+          src="/new/battle/assets/endBattleBtn.png"
           alt="End Battle Button"
           className="footer-btn"
           onClick={cancelMatch}
@@ -550,11 +441,89 @@ const Battle = ({ user }) => {
           className="phase-badge"
         />
         <CachedImage
-          src={endRoundBtn}
+          src="/new/battle/assets/endRoundBtn.png"
           alt="End Round Button"
           className="footer-btn"
+          onClick={handleEndRound}
+          style={{
+            opacity: selectedCard && selectedAbility ? 1 : 0.5,
+            pointerEvents: selectedCard && selectedAbility ? 'auto' : 'none',
+          }}
+          title={
+            selectedCard && selectedAbility
+              ? 'End Round'
+              : 'Select card and ability first'
+          }
         />
       </div>
+
+      {showAbilityPopup && (
+        <div className="ability-popup">
+          <h3>Select an Ability</h3>
+          <div className="abilities-grid">
+            {Object.entries(ABILITIES)
+              .filter(([key, ability]) => {
+                const ATTACK_ABILITIES = [
+                  'TITAN_STRIKE',
+                  'BERSERKERS_FURY',
+                  'MINDWRAP',
+                  'TWIN_STRIKE',
+                  'SOUL_LEECH',
+                  'FURY_UNLEASHED',
+                ]
+                const DEFENSE_ABILITIES = [
+                  'AEGIS_WARD',
+                  'CELESTIAL_REJUVENATION',
+                  'GUARDIANS_BULWARK',
+                  'ARCANE_OVERCHARGE',
+                ]
+
+                if (player1Role === 'attack')
+                  return ATTACK_ABILITIES.includes(key)
+                if (player1Role === 'defense')
+                  return DEFENSE_ABILITIES.includes(key)
+                return false
+              })
+              .map(([key, ability]) => {
+                const abilityImages = {
+                  AEGIS_WARD: '/new/battle/assets/ability/Aegis_Wards.png',
+                  FURY_UNLEASHED:
+                    '/new/battle/assets/ability/Fury_Unleashed.png',
+                  ARCANE_OVERCHARGE:
+                    '/new/battle/assets/ability/Archane_Overcharged.png',
+                  BERSERKERS_FURY:
+                    '/new/battle/assets/ability/Berserkers_Fury.png',
+                  CELESTIAL_REJUVENATION:
+                    '/new/battle/assets/ability/Celestial_Rejuvenation.png',
+                  GUARDIANS_BULWARK:
+                    '/new/battle/assets/ability/Guardian_s_Bulwark.png',
+                  MINDWRAP: '/new/battle/assets/ability/Mind_Wrap.png',
+                  SOUL_LEECH: '/new/battle/assets/ability/Soul_Leech.png',
+                  TITAN_STRIKE: '/new/battle/assets/ability/Titans_Strike.png',
+                  TWIN_STRIKE: '/new/battle/assets/ability/Twin_Strike.png',
+                }
+
+                // ✅ Disable button if ability already used
+                const isUsed = usedAbilities.includes(ability)
+
+                return (
+                  <button
+                    key={ability}
+                    className={`ability-btn ${selectedAbility === ability ? 'selected' : ''} ${isUsed ? 'disabled' : ''}`}
+                    onClick={() => !isUsed && handleAbilityClick(ability)}
+                    type="button"
+                  >
+                    <CachedImage
+                      src={abilityImages[key]}
+                      alt={ability}
+                      className="ability-img"
+                    />
+                  </button>
+                )
+              })}
+          </div>
+        </div>
+      )}
 
       {showFinishedModal && (
         <div className="newGame-modal">
@@ -566,7 +535,6 @@ const Battle = ({ user }) => {
                   ? '💀 You Lose!'
                   : '⚖️ It’s a Tie!'}
             </h2>
-
             {(finalResult === 'user' || finalResult === 'tie') && (
               <p className="reward-text" style={{ marginTop: '-10px' }}>
                 {finalResult === 'user'
@@ -574,11 +542,9 @@ const Battle = ({ user }) => {
                   : '🎁 You earned 5,000 Coins!'}
               </p>
             )}
-
             <p style={{ marginTop: '15px' }}>
               Thanks for playing. Redirecting to Tournament...
             </p>
-
             <button onClick={() => navigate('/tournament')}>
               Return Tournament
             </button>
@@ -589,10 +555,11 @@ const Battle = ({ user }) => {
                   navigate('/tournament')
                 } else {
                   alert('Ad not completed. No reward granted.')
-                  navigate('/tournament') // Optional: remove if you only want to navigate on success
+                  navigate('/tournament')
                 }
               }}
-              style={{ marginTop: '10px' }}
+              style={{ marginTop: 10 }}
+              type="button"
             >
               Earn 10K Coins
             </button>
