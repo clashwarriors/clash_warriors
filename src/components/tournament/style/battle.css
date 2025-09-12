@@ -203,9 +203,12 @@
 }
 
 .deck-card.disabled {
-  opacity: 0.4;
-  pointer-events: none;
-  cursor: not-allowed;
+  opacity: 0.4; /* faded */
+  pointer-events: none; /* prevent clicks */
+  filter: grayscale(70%); /* optional: make it look greyed out */
+  transition:
+    opacity 0.3s,
+    filter 0.3s;
 }
 
 .deck-card.used {
@@ -377,8 +380,12 @@
 
 .deck-card.used,
 .ability-btn.used {
-  pointer-events: none;
-  opacity: 0.4;
+  opacity: 0.4; /* faded */
+  pointer-events: none; /* prevent clicks */
+  filter: grayscale(70%); /* optional: make it look greyed out */
+  transition:
+    opacity 0.3s,
+    filter 0.3s;
 }
 
 .ability-btn.disabled {
