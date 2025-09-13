@@ -109,18 +109,27 @@ const Battle = ({ user }) => {
         data.player1?.playerId === userId ? 'player1' : 'player2'
       const opponentKey = playerKey === 'player1' ? 'player2' : 'player1'
 
-      // 🔹 Extract HP
-      setPlayer1Hp(data.player1?.hp || 0)
-      setPlayer2Hp(data.player2?.hp || 0)
+      // Extract raw HP
+      const rawP1Hp = data.player1?.hp || 0
+      const rawP2Hp = data.player2?.hp || 0
 
-      // 🔹 Current round
+      // Determine max HP for this match
+      const maxHP = Math.max(rawP1Hp, rawP2Hp, 100) // fallback 100
+
+      // Convert to percentage
+      const toPercent = (hp) => Math.round((hp / maxHP) * 100)
+
+      setPlayer1Hp(toPercent(rawP1Hp))
+      setPlayer2Hp(toPercent(rawP2Hp))
+
+      // Current round
       const currentRoundData = data[playerKey]?.currentRound || {}
       setCurrentRound((prev) => ({
         ...prev,
         [playerKey]: currentRoundData,
       }))
 
-      // 🔹 Reset selection flags for new round
+      // Reset selection flags for new round
       setCardSelected(false)
       setSelectedAbility(null)
       setSelectedCard(
@@ -132,19 +141,19 @@ const Battle = ({ user }) => {
           : null
       )
 
-      // 🔹 Names & roles
+      // Names & roles
       setPlayer1Name(data.player1?.userName || 'Player1')
       setPlayer2Name(data.player2?.userName || 'Player2')
       setPlayer1Role(currentRoundData.role || 'attack')
       setPlayer2Role(data[opponentKey]?.currentRound?.role || 'defense')
 
-      // 🔹 Is logged-in user player1?
+      // Is logged-in user player1?
       setIsPlayer1(playerKey === 'player1')
 
-      // 🔹 Current phase
+      // Current phase
       if (data.currentPhase) setPhase(data.currentPhase)
 
-      // 🔹 Remaining time
+      // Remaining time
       if (data.currentPhase && data.phaseStartTime) {
         const duration = PHASE_TIMERS[data.currentPhase] || 0
         const updateRemainingTime = () => {
@@ -156,7 +165,7 @@ const Battle = ({ user }) => {
         window._phaseTimer = setInterval(updateRemainingTime, 1000)
       }
 
-      // 🔹 Used cards & abilities
+      // Used cards & abilities
       const previousRoundsObj = data[playerKey]?.previousRounds || {}
 
       // Convert object to array
