@@ -10,19 +10,17 @@ import {
   off,
   onValue,
   get,
+  remove,
 } from 'firebase/database'
 import DefaultDeckModal from './tournament/DefaultDeckModal'
 import './tournament/style/tournament.style.css'
-import {
-  getFrames,
-  saveAllFramesToIndexedDB,
-  countStoredFrames,
-  loadFramesIntoMemory,
-} from './tournament/utils/indexedDBHelper'
 import { triggerHapticFeedback } from './tournament/utils/haptic'
 import CachedImage from './Shared/CachedImage'
 import { getAllCardsByRarity } from '../utils/cardsStorer'
 import { getUserData } from '../utils/indexedDBService'
+import { joinQueue, leaveQueue } from './shared/joinQueue'
+import { listenForMatch } from './shared/matchListner'
+import { setupAnimationsDB } from '../utils/AnimationUtility'
 
 const Tournament = ({ user }) => {
   // eslint-disable-next-line no-unused-vars
@@ -36,10 +34,6 @@ const Tournament = ({ user }) => {
   const [totalDeckSynergy, setTotalDeckSynergy] = useState(0)
   const [hasNavigated, setHasNavigated] = useState(false)
   const [canStartDailyBattle, setCanStartDailyBattle] = useState(false)
-  const [isPreloading, setIsPreloading] = useState(true)
-  const [framesLoaded, setFramesLoaded] = useState(false)
-  const [progress, setProgress] = useState(0)
-  const [framesExist, setFramesExist] = useState(false)
   // const [onlineCount, setOnlineCount] = useState(0)
   const [showDeckErrorModal, setShowDeckErrorModal] = useState(false)
   const [tutorialStep, setTutorialStep] = useState(0)
@@ -54,7 +48,7 @@ const Tournament = ({ user }) => {
   useEffect(() => {
     if (user?.userId) {
       setLoading(true)
-
+      setupAnimationsDB();
       const userRef = ref(realtimeDB, `users/${user.userId}`)
 
       get(userRef)
@@ -129,127 +123,6 @@ const Tournament = ({ user }) => {
     return () => unsubscribe() // Cleanup listener on unmount
   }, [user])
 
-  // Audios
-
-  const saveMultipleAudiosToLocalStorage = async (audioFiles) => {
-    for (const { key, url } of audioFiles) {
-      console.log(`Fetching ${url} from public directory...`)
-
-      try {
-        const response = await fetch(url)
-        if (!response.ok)
-          throw new Error(
-            `Failed to fetch ${url}: ${response.status} ${response.statusText}`
-          )
-
-        const blob = await response.blob()
-        console.log(`${url} fetched successfully, converting to Base64...`)
-
-        const reader = new FileReader()
-        reader.readAsDataURL(blob)
-        reader.onloadend = () => {
-          localStorage.setItem(key, reader.result) // Store with unique key
-          console.log(`${url} saved to LocalStorage as ${key}!`)
-        }
-      } catch (error) {
-        console.error(`Error saving ${url}:`, error)
-      }
-    }
-  }
-
-  const audioFiles = [
-    { key: 'gameAttackMusic', url: '/attackMusic.mp3' },
-    { key: 'gameDropSound', url: '/dropSound.mp3' },
-  ]
-
-  audioFiles.forEach(({ key, url }) => {
-    if (!localStorage.getItem(key)) {
-      saveMultipleAudiosToLocalStorage([{ key, url }]) // Pass as array
-    }
-  })
-
-  // Save all frames to IndexedDB
-
-  useEffect(() => {
-    const checkAndLoadFrames = async () => {
-      console.log('⏳ Checking frames in IndexedDB...')
-
-      // Step 1: Count stored frames
-      const ltrCount = await countStoredFrames('ltr', 165)
-      const rtlCount = await countStoredFrames('rtl', 165)
-      const dropSeqCount = await countStoredFrames('dropSeq', 60)
-
-      const localSavedFrames = ltrCount + rtlCount + dropSeqCount
-      setProgress((prev) =>
-        prev !== localSavedFrames ? localSavedFrames : prev
-      ) // Update only if changed
-
-      if (localSavedFrames >= 390) {
-        console.log('✅ All frames are stored in IndexedDB.')
-
-        if (!framesExist) {
-          setFramesExist(true) // Update only if needed
-        }
-
-        // Step 2: Check if frames are in memory
-        await preloadAndLoadFrames()
-      } else {
-        console.warn(
-          `⚠️ ${390 - localSavedFrames} frames missing! Click "Download Frames" to start.`
-        )
-      }
-
-      setIsPreloading(false)
-    }
-
-    checkAndLoadFrames()
-  }, [])
-
-  const handleDownload = async () => {
-    setLoading(true)
-    await saveAllFramesToIndexedDB(setProgress) // Download frames
-
-    // Step 3: Re-check frame count after download
-    const ltrCount = await countStoredFrames('ltr', 165)
-    const rtlCount = await countStoredFrames('rtl', 165)
-    const dropSeqCount = await countStoredFrames('dropSeq', 60)
-    const totalSavedFrames = ltrCount + rtlCount + dropSeqCount
-
-    setProgress(totalSavedFrames) // Update progress
-    if (totalSavedFrames >= 390) {
-      setFramesExist(true) // Hide button only after all frames are saved
-    }
-
-    // Step 4: Preload and load frames into memory after download
-    await preloadAndLoadFrames()
-
-    setLoading(false)
-  }
-
-  // ✅ Function to preload and load frames into memory after download
-  const preloadAndLoadFrames = async () => {
-    console.log('⏳ Preloading frames into memory...')
-
-    const ltrFrames = getFrames('ltr')
-    const rtlFrames = getFrames('rtl')
-    const dropSeqFrames = getFrames('dropSeq')
-
-    if (
-      ltrFrames.length > 0 &&
-      rtlFrames.length > 0 &&
-      dropSeqFrames.length > 0
-    ) {
-      console.log('✅ Frames are already in memory.')
-      setFramesLoaded(true)
-    } else {
-      console.warn('⚠️ Frames missing in memory! Loading into memory...')
-      await loadFramesIntoMemory('ltr')
-      await loadFramesIntoMemory('rtl')
-      await loadFramesIntoMemory('dropSeq')
-      setFramesLoaded(true)
-    }
-  }
-
   const handleOpenModal = () => {
     setIsModalOpen(true)
     triggerHapticFeedback()
@@ -287,46 +160,27 @@ const Tournament = ({ user }) => {
       const userData = await getUserData()
       if (!userData) return setAlertMessage('User data not found!')
 
-      const response = await fetch(
-        'http://localhost:5000/api/matchmaking/addToQueue',
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            userId: userData.userId,
-            userName: userData.username,
-            synergy: userData.totalSynergy,
-          }),
-        }
-      )
+      const added = await joinQueue(userData)
+      if (!added) return
 
-      const data = await response.json()
-      if (!data.success) {
-        console.log('User already in queue or failed to add:', data.message)
-        return
-      }
-      console.log('User added to matchmaking queue:', data.queueId)
+      setIsMatchmaking(true)
+      setIsMatchmakingModalOpen(true)
+      listenForMatch(userData.userId, navigate)
+    } catch (error) {
+      console.error(error)
+    }
+  }
 
-      // Listen for battle creation for this user
-      const battlesRef = ref(realtimeDB, 'battles')
-      const userQuery = query(
-        battlesRef,
-        orderByChild('player1/playerId'),
-        equalTo(userData.userId)
-      )
+  const handleCancel = async () => {
+    try {
+      const userData = await getUserData()
+      if (!userData) return setAlertMessage('User data not found!')
 
-      const listener = onChildAdded(userQuery, (snapshot) => {
-        const battle = snapshot.val()
-        console.log('Match found:', battle.matchId)
+      const removed = await leaveQueue(userData.userId)
+      if (!removed) return
 
-        // Navigate to tournament page with matchId
-        navigate(`/battle/${battle.matchId}`, {
-          state: { matchId: battle.matchId },
-        })
-
-        // Stop listening after match is found
-        off(userQuery, 'child_added', listener)
-      })
+      setIsMatchmaking(false)
+      setIsMatchmakingModalOpen(false)
     } catch (error) {
       console.error(error)
     }
@@ -403,21 +257,6 @@ const Tournament = ({ user }) => {
             </div>
           </div>
         )}
-
-        {!framesExist && (
-          <div>
-            <CachedImage
-              src="/new/tournament/downloadBtn.png"
-              alt="Refresh"
-              style={{ display: 'block' }}
-              onClick={handleDownload}
-            />
-
-            <div>
-              <p>📥 {Math.round((progress / 390) * 100)}% Downloaded</p>
-            </div>
-          </div>
-        )}
       </div>
 
       <DefaultDeckModal
@@ -432,7 +271,8 @@ const Tournament = ({ user }) => {
             <CachedImage
               src="/new/tournament/cancel2.png"
               className="tournamentHome-cancel-button"
-              onClick={handleCancelMatchmaking}
+              onClick={handleCancel}
+              alt="Cancel Button"
             />
           </div>
         </div>

@@ -12,7 +12,6 @@ import { getUserData } from './utils/indexedDBService'
 import { initializeLocalData } from './utils/syncService'
 import { startCoinGenerator, stopCoinGenerator } from './utils/pphScript'
 import { updateFreeCardImages } from './utils/imageHelper'
-
 import imageList from './assets/imageList.json'
 
 import Dashboard from './components/Dashboard'
@@ -226,10 +225,7 @@ const MainContent = React.memo(({ user, status }) => {
           path="/settings"
           element={<Settings user={user} status={status} />}
         />
-        <Route
-          path="/new"
-          element={<FirebaseImage />}
-        />
+        <Route path="/new" element={<FirebaseImage />} />
       </Routes>
 
       {/* Conditionally hide the footer based on the page */}

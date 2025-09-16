@@ -1,20 +1,15 @@
 import { useParams, useNavigate } from 'react-router-dom'
 import { useEffect, useState, useRef } from 'react'
 import { ref, onValue, off } from 'firebase/database'
-import {
-  showRewardedInterstitialAd1K,
-  showRewardedInterstitialAd10K,
-} from './utils/adsUtility'
+import { showRewardedInterstitialAd10K } from './utils/adsUtility'
 import './style/battle.css'
 import { getCards } from '../../utils/indexedDBService'
 import cardHolder from '/assets/gameLogo.avif'
 import summonLeft from './assets/leftSummon.png'
 import summonRight from './assets/rightSummon.png'
-import { playStoredAudio } from './utils/audioUtils'
-import { dropHapticFeedback } from './utils/haptic'
 import { realtimeDB } from '../../firebase'
-import { getFrames } from './utils/indexedDBHelper'
 import CachedImage from '../shared/CachedImage'
+import { getUserData, storeUserData } from '../../utils/indexedDBService'
 
 const PHASES = {
   COOLDOWN: 'cooldown',
@@ -51,15 +46,7 @@ const Battle = ({ user }) => {
   const [remainingTime, setRemainingTime] = useState(0)
   const [selectedCard, setSelectedCard] = useState(null)
   const [player2SelectedCard, setPlayer2SelectedCard] = useState(null)
-  const [dropFrames, setDropFrames] = useState([])
-  const [frameIndex, setFrameIndex] = useState(0)
-  const [animating, setAnimating] = useState(false)
-  const [player2Animating, setPlayer2Animating] = useState(false)
-  const [player2FrameIndex, setPlayer2FrameIndex] = useState(0)
   const [showFinishedModal, setShowFinishedModal] = useState(false)
-  const [animationDirection, setAnimationDirection] = useState(null)
-  const [directionalFrames, setDirectionalFrames] = useState([])
-  const [directionFrameIndex, setDirectionFrameIndex] = useState(0)
   const [player1Name, setPlayer1Name] = useState('')
   const [player2Name, setPlayer2Name] = useState('maybe')
   const [showAbilityPopup, setShowAbilityPopup] = useState(false)
@@ -68,8 +55,8 @@ const Battle = ({ user }) => {
   const [playerDeck, setPlayerDeck] = useState([])
   const [player1Hp, setPlayer1Hp] = useState(0)
   const [player2Hp, setPlayer2Hp] = useState(0)
-  const [player1Role, setPlayer1Role] = useState('attack')
-  const [player2Role, setPlayer2Role] = useState('defense')
+  const [player1Role, setPlayer1Role] = useState('')
+  const [player2Role, setPlayer2Role] = useState('')
   const [isPlayer1, setIsPlayer1] = useState(null)
   const [player1Ability, setPlayer1Ability] = useState(null)
   const [player2Ability, setPlayer2Ability] = useState(null)
@@ -94,61 +81,60 @@ const Battle = ({ user }) => {
     [PHASES.FINISHED]: '/new/battle/assets/phase/cancelled.png', // reuse cancelled
   }
 
-  // Match Fetching and Setup
   useEffect(() => {
     if (!matchID || !userId) return
 
-    const matchRef = ref(realtimeDB, `battles/${matchID}`)
+    const matchRef = ref(realtimeDB, `ongoingBattles/${matchID}`)
     const unsubscribe = onValue(matchRef, (snapshot) => {
       const data = snapshot.val()
       if (!data) return console.log('No match data found in Realtime DB')
 
       setMatch(data)
 
-      const playerKey =
-        data.player1?.playerId === userId ? 'player1' : 'player2'
-      const opponentKey = playerKey === 'player1' ? 'player2' : 'player1'
+      // Always assume player1 = logged in user
+      const playerKey = 'player1'
+      const opponentKey = 'player2'
 
       // Extract raw HP
-      const rawP1Hp = data.player1?.hp || 0
-      const rawP2Hp = data.player2?.hp || 0
+      const rawP1Hp = data.player1?.synergy || 0
+      const rawP2Hp = data.player2?.synergy || 0
 
-      // Determine max HP for this match
-      const maxHP = Math.max(rawP1Hp, rawP2Hp, 100) // fallback 100
+      // Determine max HP
+      const maxHP = Math.max(rawP1Hp, rawP2Hp, 100)
 
       // Convert to percentage
-      const toPercent = (hp) => Math.round((hp / maxHP) * 100)
+      const toPercent = (synergy) => Math.round((synergy / maxHP) * 100)
 
       setPlayer1Hp(toPercent(rawP1Hp))
       setPlayer2Hp(toPercent(rawP2Hp))
 
-      // Current round
-      const currentRoundData = data[playerKey]?.currentRound || {}
+      // Current round (player1 = user)
+      const currentRoundData = data.player1?.currentRound || {}
       setCurrentRound((prev) => ({
         ...prev,
         [playerKey]: currentRoundData,
       }))
 
-      // Reset selection flags for new round
+      // Reset selections
       setCardSelected(false)
       setSelectedAbility(null)
       setSelectedCard(
         currentRoundData.cardId ? { src: currentRoundData.cardPhotoSrc } : null
       )
       setPlayer2SelectedCard(
-        data[opponentKey]?.currentRound?.cardId
-          ? { src: data[opponentKey].currentRound.cardPhotoSrc }
+        data.player2?.currentRound?.cardId
+          ? { src: data.player2.currentRound.cardPhotoSrc }
           : null
       )
 
       // Names & roles
       setPlayer1Name(data.player1?.userName || 'Player1')
       setPlayer2Name(data.player2?.userName || 'Player2')
-      setPlayer1Role(currentRoundData.role || 'attack')
-      setPlayer2Role(data[opponentKey]?.currentRound?.role || 'defense')
+      setPlayer1Role(data.player1?.currentRole || 'attack')
+      setPlayer2Role(data.player2?.currentRole || 'defense')
 
-      // Is logged-in user player1?
-      setIsPlayer1(playerKey === 'player1')
+      // Logged user always player1
+      setIsPlayer1(true)
 
       // Current phase
       if (data.currentPhase) setPhase(data.currentPhase)
@@ -166,14 +152,11 @@ const Battle = ({ user }) => {
       }
 
       // Used cards & abilities
-      const previousRoundsObj = data[playerKey]?.previousRounds || {}
-
-      // Convert object to array
+      const previousRoundsObj = data.player1?.previousRounds || {}
       const previousRoundsArr = Object.values(previousRoundsObj)
 
       const currentRoundAbility = currentRoundData.abilitySelected || null
 
-      // Combine previous rounds abilities + current round ability
       const allUsedAbilities = [
         ...previousRoundsArr.map((r) => r.ability).filter(Boolean),
         currentRoundAbility,
@@ -181,7 +164,7 @@ const Battle = ({ user }) => {
 
       setUsedAbilities(allUsedAbilities)
 
-      // Only previous rounds → block cards used in past rounds, not current round
+      // Block only previous rounds cards/abilities
       const usedCards = previousRoundsArr.map((r) => r.cardId).filter(Boolean)
       const usedAbilities = previousRoundsArr
         .map((r) => r.ability)
@@ -189,7 +172,41 @@ const Battle = ({ user }) => {
 
       setPreviousRounds({ [playerKey]: previousRoundsObj })
       setUsedCardIds(usedCards)
-      setUsedAbilities(usedAbilities)
+
+      // End of match
+      if (
+        data.currentPhase === 'finished' ||
+        data.currentPhase === 'cancelled'
+      ) {
+        if (data.winnerId === userId) {
+          setFinalResult('user') // 🏆 You Win
+          setShowFinishedModal(true)
+
+          // Reward coins
+          ;(async () => {
+            const user = await getUserData()
+            if (user && user.userId === userId) {
+              const updatedUser = {
+                ...user,
+                coins: (user.coins || 0) + 30000,
+              }
+              await storeUserData(updatedUser)
+              console.log('✅ Winner reward: +30,000 coins')
+            }
+          })()
+        } else if (data.loserId === userId) {
+          setFinalResult('bot') // 💀 You Lose
+          setShowFinishedModal(true)
+        } else {
+          setFinalResult('tie') // ⚖️ Tie
+          setShowFinishedModal(true)
+        }
+
+        // Redirect
+        setTimeout(() => {
+          navigate('/tournament')
+        }, 10000)
+      }
     })
 
     return () => {
@@ -198,7 +215,6 @@ const Battle = ({ user }) => {
     }
   }, [matchID, userId])
 
-  // Deck Managment
   useEffect(() => {
     const fetchDefaultDeck = async () => {
       try {
@@ -214,18 +230,17 @@ const Battle = ({ user }) => {
     fetchDefaultDeck()
   }, [])
 
-  // Card Selection Handler
   const handleCardClick = async (card) => {
     if (phase !== PHASES.SELECTION || cardSelected) return // block extra clicks
 
     try {
       const res = await fetch(
-        `http://localhost:5000/api/battle/${matchID}/select-card`,
+        `http://localhost:3000/api/battle/${matchID}/select-card`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            playerId: userId,
+            useId: userId,
             cardId: card.cardId,
             photo: card.photo,
             stats: card.stats,
@@ -253,11 +268,11 @@ const Battle = ({ user }) => {
       const playerKey = isPlayer1 ? 'player1' : 'player2'
 
       const res = await fetch(
-        `http://localhost:5000/api/battle/${matchID}/select-ability`,
+        `http://localhost:3000/api/battle/${matchID}/select-ability`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ playerId: userId, abilityKey }),
+          body: JSON.stringify({ userId: userId, abilityKey }),
         }
       )
 
@@ -279,32 +294,40 @@ const Battle = ({ user }) => {
     }
   }
 
-  // End Round
   const handleEndRound = async () => {
     console.log('End Round clicked')
 
-    if (!matchID || !user.userId) return
+    if (!matchID || !user?.userId) return
 
     try {
-      const res = await fetch('http://localhost:5000/api/battle/endTurn', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ matchId: matchID, playerId: user.userId }),
-      })
+      const res = await fetch(
+        `http://localhost:3000/api/battle/${matchID}/endTurn`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ playerId: user.userId }),
+        }
+      )
 
       const data = await res.json()
-      if (data.success) console.log('Turn ended successfully!')
+
+      if (data.success) {
+        console.log('Turn ended successfully!')
+        // Optionally, update local state to reflect player has ended turn
+        // e.g., setPlayerEnded(true);
+      } else {
+        console.warn('Failed to end turn:', data.error)
+      }
     } catch (err) {
       console.error('Failed to end turn:', err)
     }
   }
 
-  // Cancel Match
   const cancelMatch = async () => {
     if (!matchID || !user.userId) return
 
     try {
-      await fetch('http://localhost:5000/api/battle/cancel', {
+      await fetch(`http://localhost:3000/api/battle/${matchID}/cancelMatch`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ matchId: matchID, playerId: user.userId }),
@@ -312,11 +335,18 @@ const Battle = ({ user }) => {
 
       console.log('Match cancelled, leaving tournament')
       localStorage.removeItem('currentMatchId')
-      navigate('/tournament') // redirect to tournament page
+
+      setTimeout(() => {
+        navigate('/tournament')
+      }, 10000)
     } catch (err) {
       console.error('Failed to cancel match:', err)
     }
   }
+
+  // Animations Part
+
+  
 
   return (
     <div className="battle-container" ref={containerRef}>
@@ -343,23 +373,6 @@ const Battle = ({ user }) => {
           className="summon-wrapper summon-left"
           style={{ position: 'relative' }}
         >
-          {selectedCard && animating && dropFrames.length > 0 && (
-            <img
-              src={dropFrames[frameIndex]}
-              alt="Drop Animation"
-              className="drop-animation-frame"
-              style={{
-                position: 'absolute',
-                top: '-50%',
-                left: '50%',
-                transform: 'translateX(-50%)',
-                width: 430,
-                height: 420,
-                zIndex: 2,
-                pointerEvents: 'none',
-              }}
-            />
-          )}
           <img
             src={selectedCard ? selectedCard.src : cardHolder}
             alt="Player Card"
@@ -376,23 +389,7 @@ const Battle = ({ user }) => {
           className="summon-wrapper summon-right"
           style={{ position: 'relative' }}
         >
-          {player2SelectedCard && player2Animating && dropFrames.length > 0 && (
-            <img
-              src={dropFrames[player2FrameIndex]}
-              alt="Player2 Drop Animation"
-              className="drop-animation-frame"
-              style={{
-                position: 'absolute',
-                top: '-50%',
-                left: '50%',
-                transform: 'translateX(-50%)',
-                width: 430,
-                height: 440,
-                zIndex: 1,
-                pointerEvents: 'none',
-              }}
-            />
-          )}
+
           <img
             src={player2SelectedCard ? player2SelectedCard.src : cardHolder}
             className="card-img"
@@ -405,14 +402,6 @@ const Battle = ({ user }) => {
             className="summon-img glow-blue tilt-up"
           />
         </div>
-        {directionalFrames.length > 0 && (
-          <img
-            src={directionalFrames[directionFrameIndex]}
-            alt="Battle Direction Animation"
-            className="directional-animation"
-            style={{ marginTop: 30 }}
-          />
-        )}
       </div>
 
       <div className="deck-section">
@@ -456,7 +445,6 @@ const Battle = ({ user }) => {
           onClick={handleEndRound}
           style={{
             opacity: selectedCard && selectedAbility ? 1 : 0.5,
-            pointerEvents: selectedCard && selectedAbility ? 'auto' : 'none',
           }}
           title={
             selectedCard && selectedAbility
