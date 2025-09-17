@@ -10,18 +10,9 @@ import summonRight from './assets/rightSummon.png'
 import { realtimeDB } from '../../firebase'
 import CachedImage from '../shared/CachedImage'
 import { getUserData, storeUserData } from '../../utils/indexedDBService'
-import {
-  PHASES,
-  PHASE_TIMERS,
-  ABILITIES,
-  ATTACK_ABILITIES,
-  DEFENSE_ABILITIES,
-} from './utils/battleModifiers'
-import {
-  setupAnimationsDB,
-  fetchAbilityFrames,
-} from '../../utils/AnimationUtility'
-import { clear, set } from 'idb-keyval'
+import { PHASES, PHASE_TIMERS, ABILITIES } from './utils/battleModifiers'
+import { fetchAbilityFrames } from '../../utils/AnimationUtility'
+import { abilityConfig, abilityWeights } from './weights/abilites' // your ability JSON
 
 const Battle = ({ user }) => {
   const { matchID } = useParams()
@@ -378,43 +369,6 @@ const Battle = ({ user }) => {
 
   // Animation Part
 
-  // ---------------- Animation Handling ----------------
-
-  const abilityStoreMap = {
-    'Aegis Ward': 'AEGIS_WARD',
-    'Arcane Overcharge': 'ARCANE_OVERCHARGE',
-    'Berserkers Fury': 'BERSERKERS_FURY_MAIN', // or HOR based on logic
-    'Celestial Rejuvenation': 'CELESTIAL_REJUVENATION',
-    'Drop Animation': 'DROP_ANIMATION',
-    'Fury Unleashed': 'FURY_UNLEASHED',
-    'Guardians Bulwark': 'GUARDIANS_BULWARK',
-    Mindwrap: 'MINDWRAP',
-    'Soul Leech': 'SOUL_LEECH',
-    'Titan Strike': 'TITAN_STRIKE',
-    'Twin Strike': 'TWIN_STRIKE',
-  }
-
-  const abilityConfig = {
-    'Berserkers Fury': {
-      parts: [
-        { key: 'BERSERKERS_FURY_HOR', delay: 0 }, // start immediately
-        { key: 'BERSERKERS_FURY_MAIN', delay: 300 }, // start 0.3s later
-      ],
-    },
-    'Aegis Ward': { parts: [{ key: 'AEGIS_WARD', delay: 0 }] },
-    'Arcane Overcharge': { parts: [{ key: 'ARCANE_OVERCHARGE', delay: 0 }] },
-    'Celestial Rejuvenation': {
-      parts: [{ key: 'CELESTIAL_REJUVENATION', delay: 0 }],
-    },
-    'Drop Animation': { parts: [{ key: 'DROP_ANIMATION', delay: 0 }] },
-    'Fury Unleashed': { parts: [{ key: 'FURY_UNLEASHED', delay: 0 }] },
-    "Guardian's Bulwark": { parts: [{ key: 'GUARDIANS_BULWARK', delay: 0 }] },
-    'Mind Wrap': { parts: [{ key: 'MINDWRAP', delay: 0 }] },
-    'Soul Leech': { parts: [{ key: 'SOUL_LEECH', delay: 0 }] },
-    "Titan's Strike": { parts: [{ key: 'TITAN_STRIKE', delay: 0 }] },
-    'Twin Strike': { parts: [{ key: 'TWIN_STRIKE', delay: 0 }] },
-  }
-
   const playAbility = async (abilityName, side) => {
     const config = abilityConfig[abilityName]
     if (!config) {
@@ -462,8 +416,21 @@ const Battle = ({ user }) => {
     }
   }
 
-  const runAnimation = async (abilityDecision) => {
+  const lastPlayedRef = useRef(null)
+
+  const runAnimation = async (abilityDecision, round) => {
     if (!abilityDecision) return
+
+    // Build a unique key (round + abilities)
+    const decisionKey = `${round}-${abilityDecision.attack?.ability || 'none'}-${abilityDecision.defense?.ability || 'none'}`
+
+    // Prevent re-running if already played
+    if (lastPlayedRef.current === decisionKey) {
+      console.log(`⏭️ Animation for round ${round} already played, skipping`)
+      return
+    }
+    lastPlayedRef.current = decisionKey
+
     const { attack, defense } = abilityDecision
 
     // Case 1: Both selected
@@ -502,9 +469,9 @@ const Battle = ({ user }) => {
                 <span className="role-icon">🛡️</span>
               )}
             </p>
-            <div className="hp-bar-container">
+            {/* <div className="hp-bar-container">
               <div className="hp-bar" style={{ width: `${player1Hp}%` }} />
-            </div>
+            </div> */}
           </div>
         </div>
 
@@ -526,9 +493,9 @@ const Battle = ({ user }) => {
               {'    '}
               {player2Name}
             </p>
-            <div className="hp-bar-container">
+            {/* <div className="hp-bar-container">
               <div className="hp-bar" style={{ width: `${player2Hp}%` }} />
-            </div>
+            </div> */}
           </div>
           <img src="/assets/gameLogo.avif" className="avatar" />
         </div>
