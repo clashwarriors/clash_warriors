@@ -8,7 +8,6 @@ import { realtimeDB, firestoreDB } from '../firebase'
 import { ref, onValue, set } from 'firebase/database'
 import { collection, getDocs, addDoc } from 'firebase/firestore'
 import './style/settings.style.css'
-import { deleteAllFrames } from './tournament/utils/indexedDBHelper'
 
 const Settings = ({ user }) => {
   const wallet = useTonWallet()
@@ -154,7 +153,7 @@ const Settings = ({ user }) => {
       </div>
 
       <button
-        onClick={deleteAllFrames}
+        
         style={{
           marginTop: '20px',
           padding: '10px',
