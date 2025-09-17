@@ -1,11 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { realtimeDB } from '../firebase'
-import {
-  ref,
-  onValue,
-  get,
-} from 'firebase/database'
+import { ref, onValue, get } from 'firebase/database'
 import DefaultDeckModal from './tournament/DefaultDeckModal'
 import './tournament/style/tournament.style.css'
 import { triggerHapticFeedback } from './tournament/utils/haptic'
@@ -13,7 +9,10 @@ import CachedImage from './Shared/CachedImage'
 import { getUserData } from '../utils/indexedDBService'
 import { joinQueue, leaveQueue } from './shared/joinQueue'
 import { listenForMatch } from './shared/matchListner'
-import { setupAnimationsDB, fetchAbilityFrames } from '../utils/AnimationUtility'
+import {
+  setupAnimationsDB,
+  fetchAbilityFrames,
+} from '../utils/AnimationUtility'
 
 const Tournament = ({ user }) => {
   // eslint-disable-next-line no-unused-vars

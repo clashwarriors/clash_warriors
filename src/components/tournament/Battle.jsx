@@ -12,7 +12,6 @@ import CachedImage from '../shared/CachedImage'
 import { getUserData, storeUserData } from '../../utils/indexedDBService'
 import { PHASES, PHASE_TIMERS, ABILITIES } from './utils/battleModifiers'
 import { fetchAbilityFrames } from '../../utils/AnimationUtility'
-import { abilityConfig, abilityWeights } from './weights/abilites' // your ability JSON
 
 const Battle = ({ user }) => {
   const { matchID } = useParams()
@@ -47,6 +46,8 @@ const Battle = ({ user }) => {
   const [usedAbilities, setUsedAbilities] = useState([])
   const [hasEndedTurn, setHasEndedTurn] = useState(false)
   const [phaseAnnouncement, setPhaseAnnouncement] = useState(null)
+
+  const backendURL = 'https://cwbackendl.onrender.com'
 
   const [currentAbilityDecision, setCurrentAbilityDecision] = useState({
     attack: null,
@@ -258,7 +259,7 @@ const Battle = ({ user }) => {
 
     try {
       const res = await fetch(
-        `http://localhost:3000/api/battle/${matchID}/select-card`,
+        `${backendURL}/api/battle/${matchID}/select-card`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -291,7 +292,7 @@ const Battle = ({ user }) => {
       const playerKey = isPlayer1 ? 'player1' : 'player2'
 
       const res = await fetch(
-        `http://localhost:3000/api/battle/${matchID}/select-ability`,
+        `${backendURL}/api/battle/${matchID}/select-ability`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -323,14 +324,11 @@ const Battle = ({ user }) => {
     if (!matchID || !user?.userId) return
 
     try {
-      const res = await fetch(
-        `http://localhost:3000/api/battle/${matchID}/endTurn`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ playerId: user.userId }),
-        }
-      )
+      const res = await fetch(`${backendURL}/api/battle/${matchID}/endTurn`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ playerId: user.userId }),
+      })
 
       const data = await res.json()
 
@@ -350,7 +348,7 @@ const Battle = ({ user }) => {
     if (!matchID || !user.userId) return
 
     try {
-      await fetch(`http://localhost:3000/api/battle/${matchID}/cancelMatch`, {
+      await fetch(`${backendURL}/api/battle/${matchID}/cancelMatch`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ matchId: matchID, playerId: user.userId }),
@@ -369,8 +367,60 @@ const Battle = ({ user }) => {
 
   // Animation Part
 
+  const abilityConfig = {
+    berserkers_fury: {
+      displayName: 'Berserkers Fury',
+      parts: [
+        { key: 'BERSERKERS_FURY_HOR', delay: 0 },
+        { key: 'BERSERKERS_FURY_MAIN', delay: 300 },
+      ],
+    },
+    aegis_ward: {
+      displayName: 'Aegis Ward',
+      parts: [{ key: 'AEGIS_WARD', delay: 0 }],
+    },
+    arcane_overcharge: {
+      displayName: 'Arcane Overcharge',
+      parts: [{ key: 'ARCANE_OVERCHARGE', delay: 0 }],
+    },
+    celestial_rejuvenation: {
+      displayName: 'Celestial Rejuvenation',
+      parts: [{ key: 'CELESTIAL_REJUVENATION', delay: 0 }],
+    },
+    guardians_bulwark: {
+      displayName: "Guardian's Bulwark",
+      parts: [{ key: 'GUARDIANS_BULWARK', delay: 0 }],
+    },
+    mindwrap: {
+      displayName: 'Mind Wrap',
+      parts: [{ key: 'MINDWRAP', delay: 0 }],
+    },
+    soul_leech: {
+      displayName: 'Soul Leech',
+      parts: [{ key: 'SOUL_LEECH', delay: 0 }],
+    },
+    titans_strike: {
+      displayName: "Titan's Strike",
+      parts: [{ key: 'TITAN_STRIKE', delay: 0 }],
+    },
+    twin_strike: {
+      displayName: 'Twin Strike',
+      parts: [{ key: 'TWIN_STRIKE', delay: 0 }],
+    },
+    fury_unleashed: {
+      displayName: 'Fury Unleashed',
+      parts: [{ key: 'FURY_UNLEASHED', delay: 0 }],
+    },
+    drop_animation: {
+      displayName: 'Drop Animation',
+      parts: [{ key: 'DROP_ANIMATION', delay: 0 }],
+    },
+  }
+
   const playAbility = async (abilityName, side) => {
-    const config = abilityConfig[abilityName]
+    const config = Object.values(abilityConfig).find(
+      (c) => c.displayName === abilityName
+    )
     if (!config) {
       console.warn(`⚠️ No config found for ability: ${abilityName}`)
       return

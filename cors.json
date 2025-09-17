@@ -6,7 +6,8 @@
       "http://localhost:5173",
       "https://clashwarriorstestingserver.loca.lt",
       "https://clashwarriors.tech",
-      "https://adorable-fudge-c73118.netlify.app/"
+      "https://adorable-fudge-c73118.netlify.app/",
+      "https://cwbackendl.onrender.com"
     ],
     "method": ["GET"],
     "maxAgeSeconds": 3600
