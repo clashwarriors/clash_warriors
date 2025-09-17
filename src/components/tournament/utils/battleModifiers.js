@@ -1,0 +1,43 @@
+const PHASES = {
+  COOLDOWN: 'cooldown',
+  SELECTION: 'selection',
+  BATTLE: 'battle',
+  CANCELLED: 'cancelled',
+}
+
+const PHASE_TIMERS = {
+  cooldown: 5000,
+  selection: 1000000,
+  battle: 10000,
+}
+
+const ABILITIES = {
+  AEGIS_WARD: 'Aegis Ward',
+  ARCANE_OVERCHARGE: 'Arcane Overcharge',
+  BERSERKERS_FURY: 'Berserkers Fury',
+  CELESTIAL_REJUVENATION: 'Celestial Rejuvenation',
+  FURY_UNLEASHED: 'Fury Unleashed',
+  GUARDIANS_BULWARK: "Guardian's Bulwark",
+  MINDWRAP: 'Mind Wrap',
+  SOUL_LEECH: 'Soul Leech',
+  TITAN_STRIKE: "Titan's Strike",
+  TWIN_STRIKE: 'Twin Strike',
+}
+
+const ATTACK_ABILITIES = [
+  'TITAN_STRIKE',
+  'BERSERKERS_FURY',
+  'MINDWRAP',
+  'TWIN_STRIKE',
+  'SOUL_LEECH',
+  'FURY_UNLEASHED',
+]
+
+const DEFENSE_ABILITIES = [
+  'AEGIS_WARD',
+  'CELESTIAL_REJUVENATION',
+  'GUARDIANS_BULWARK',
+  'ARCANE_OVERCHARGE',
+]
+
+export { PHASES, PHASE_TIMERS, ABILITIES, ATTACK_ABILITIES, DEFENSE_ABILITIES }

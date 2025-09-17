@@ -10,32 +10,18 @@ import summonRight from './assets/rightSummon.png'
 import { realtimeDB } from '../../firebase'
 import CachedImage from '../shared/CachedImage'
 import { getUserData, storeUserData } from '../../utils/indexedDBService'
-
-const PHASES = {
-  COOLDOWN: 'cooldown',
-  SELECTION: 'selection',
-  BATTLE: 'battle',
-  CANCELLED: 'cancelled',
-}
-
-const PHASE_TIMERS = {
-  cooldown: 5000,
-  selection: 1000000,
-  battle: 10000,
-}
-
-const ABILITIES = {
-  AEGIS_WARD: 'Aegis Ward',
-  ARCANE_OVERCHARGE: 'Arcane Overcharge',
-  BERSERKERS_FURY: 'Berserkers Fury',
-  CELESTIAL_REJUVENATION: 'Celestial Rejuvenation',
-  FURY_UNLEASHED: 'Fury Unleashed',
-  GUARDIANS_BULWARK: "Guardian's Bulwark",
-  MINDWRAP: 'Mind Wrap',
-  SOUL_LEECH: 'Soul Leech',
-  TITAN_STRIKE: "Titan's Strike",
-  TWIN_STRIKE: 'Twin Strike',
-}
+import {
+  PHASES,
+  PHASE_TIMERS,
+  ABILITIES,
+  ATTACK_ABILITIES,
+  DEFENSE_ABILITIES,
+} from './utils/battleModifiers'
+import {
+  setupAnimationsDB,
+  fetchAbilityFrames,
+} from '../../utils/AnimationUtility'
+import { clear, set } from 'idb-keyval'
 
 const Battle = ({ user }) => {
   const { matchID } = useParams()
@@ -70,6 +56,10 @@ const Battle = ({ user }) => {
   const [usedAbilities, setUsedAbilities] = useState([])
   const [hasEndedTurn, setHasEndedTurn] = useState(false)
 
+  const [currentAbilityDecision, setCurrentAbilityDecision] = useState({
+    attack: null,
+    defense: null,
+  })
   const containerRef = useRef(null)
   const intervalRef = useRef(null)
 
@@ -78,37 +68,32 @@ const Battle = ({ user }) => {
     [PHASES.SELECTION]: '/new/battle/assets/phase/selection.png',
     [PHASES.BATTLE]: '/new/battle/assets/phase/battle.png',
     [PHASES.CANCELLED]: '/new/battle/assets/phase/cancelled.png',
-    [PHASES.FINISHED]: '/new/battle/assets/phase/cancelled.png', // reuse cancelled
   }
 
   useEffect(() => {
     if (!matchID || !userId) return
 
     const matchRef = ref(realtimeDB, `ongoingBattles/${matchID}`)
+    let finishTimeout = null
     const unsubscribe = onValue(matchRef, (snapshot) => {
       const data = snapshot.val()
       if (!data) return console.log('No match data found in Realtime DB')
 
       setMatch(data)
 
-      // Always assume player1 = logged in user
       const playerKey = 'player1'
       const opponentKey = 'player2'
 
       // Extract raw HP
       const rawP1Hp = data.player1?.synergy || 0
       const rawP2Hp = data.player2?.synergy || 0
-
-      // Determine max HP
       const maxHP = Math.max(rawP1Hp, rawP2Hp, 100)
-
-      // Convert to percentage
       const toPercent = (synergy) => Math.round((synergy / maxHP) * 100)
 
       setPlayer1Hp(toPercent(rawP1Hp))
       setPlayer2Hp(toPercent(rawP2Hp))
 
-      // Current round (player1 = user)
+      // Current round
       const currentRoundData = data.player1?.currentRound || {}
       setCurrentRound((prev) => ({
         ...prev,
@@ -133,13 +118,10 @@ const Battle = ({ user }) => {
       setPlayer1Role(data.player1?.currentRole || 'attack')
       setPlayer2Role(data.player2?.currentRole || 'defense')
 
-      // Logged user always player1
       setIsPlayer1(true)
 
-      // Current phase
       if (data.currentPhase) setPhase(data.currentPhase)
 
-      // Remaining time
       if (data.currentPhase && data.phaseStartTime) {
         const duration = PHASE_TIMERS[data.currentPhase] || 0
         const updateRemainingTime = () => {
@@ -154,24 +136,67 @@ const Battle = ({ user }) => {
       // Used cards & abilities
       const previousRoundsObj = data.player1?.previousRounds || {}
       const previousRoundsArr = Object.values(previousRoundsObj)
-
       const currentRoundAbility = currentRoundData.abilitySelected || null
-
       const allUsedAbilities = [
         ...previousRoundsArr.map((r) => r.ability).filter(Boolean),
         currentRoundAbility,
       ]
-
       setUsedAbilities(allUsedAbilities)
 
-      // Block only previous rounds cards/abilities
       const usedCards = previousRoundsArr.map((r) => r.cardId).filter(Boolean)
       const usedAbilities = previousRoundsArr
         .map((r) => r.ability)
         .filter(Boolean)
-
       setPreviousRounds({ [playerKey]: previousRoundsObj })
       setUsedCardIds(usedCards)
+
+      // Abilities selected this round
+
+      const p1Ability = data.player1?.currentRound?.abilitySelected
+      const p2Ability = data.player2?.currentRound?.abilitySelected
+
+      const player1Role = data.player1?.currentRole || 'attack'
+      const player2Role = data.player2?.currentRole || 'defense'
+
+      // Initialize
+      const abilityDecision = { attack: null, defense: null }
+
+      // Both selected
+      if (p1Ability && p2Ability) {
+        // Assign defender first (animation runs on defender)
+        if (player1Role === 'defense')
+          abilityDecision.defense = { side: 'left', ability: p1Ability }
+        if (player2Role === 'defense')
+          abilityDecision.defense = { side: 'right', ability: p2Ability }
+
+        // Then assign attacker
+        if (player1Role === 'attack')
+          abilityDecision.attack = { side: 'left', ability: p1Ability }
+        if (player2Role === 'attack')
+          abilityDecision.attack = { side: 'right', ability: p2Ability }
+
+        // Only player1 selected
+      } else if (p1Ability) {
+        if (player1Role === 'attack')
+          abilityDecision.attack = { side: 'left', ability: p1Ability }
+        if (player1Role === 'defense')
+          abilityDecision.defense = { side: 'left', ability: p1Ability }
+
+        // Only player2 selected
+      } else if (p2Ability) {
+        if (player2Role === 'attack')
+          abilityDecision.attack = { side: 'right', ability: p2Ability }
+        if (player2Role === 'defense')
+          abilityDecision.defense = { side: 'right', ability: p2Ability }
+
+        // None selected → leave both null
+      }
+
+      setCurrentAbilityDecision(abilityDecision)
+      console.log('⚡ Ability decision this round:', abilityDecision)
+      if (data.currentPhase === PHASES.BATTLE) {
+        runAnimation(abilityDecision)
+      }
 
       // End of match
       if (
@@ -179,32 +204,27 @@ const Battle = ({ user }) => {
         data.currentPhase === 'cancelled'
       ) {
         if (data.winnerId === userId) {
-          setFinalResult('user') // 🏆 You Win
+          setFinalResult('user')
           setShowFinishedModal(true)
-
-          // Reward coins
           ;(async () => {
             const user = await getUserData()
             if (user && user.userId === userId) {
-              const updatedUser = {
-                ...user,
-                coins: (user.coins || 0) + 30000,
-              }
+              const updatedUser = { ...user, coins: (user.coins || 0) + 30000 }
               await storeUserData(updatedUser)
               console.log('✅ Winner reward: +30,000 coins')
             }
           })()
         } else if (data.loserId === userId) {
-          setFinalResult('bot') // 💀 You Lose
+          setFinalResult('bot')
           setShowFinishedModal(true)
         } else {
-          setFinalResult('tie') // ⚖️ Tie
+          setFinalResult('tie')
           setShowFinishedModal(true)
         }
 
-        // Redirect
-        setTimeout(() => {
+        finishTimeout = setTimeout(() => {
           navigate('/tournament')
+          setShowFinishedModal(false)
         }, 10000)
       }
     })
@@ -212,6 +232,7 @@ const Battle = ({ user }) => {
     return () => {
       off(matchRef)
       if (window._phaseTimer) clearInterval(window._phaseTimer)
+      if (finishTimeout) clearTimeout(finishTimeout)
     }
   }, [matchID, userId])
 
@@ -344,9 +365,115 @@ const Battle = ({ user }) => {
     }
   }
 
-  // Animations Part
+  // Animation Part
 
-  
+  // ---------------- Animation Handling ----------------
+
+  const abilityStoreMap = {
+    'Aegis Ward': 'AEGIS_WARD',
+    'Arcane Overcharge': 'ARCANE_OVERCHARGE',
+    'Berserkers Fury': 'BERSERKERS_FURY_MAIN', // or HOR based on logic
+    'Celestial Rejuvenation': 'CELESTIAL_REJUVENATION',
+    'Drop Animation': 'DROP_ANIMATION',
+    'Fury Unleashed': 'FURY_UNLEASHED',
+    'Guardians Bulwark': 'GUARDIANS_BULWARK',
+    Mindwrap: 'MINDWRAP',
+    'Soul Leech': 'SOUL_LEECH',
+    'Titan Strike': 'TITAN_STRIKE',
+    'Twin Strike': 'TWIN_STRIKE',
+  }
+
+  const abilityConfig = {
+    'Berserkers Fury': {
+      parts: [
+        { key: 'BERSERKERS_FURY_HOR', delay: 0 }, // start immediately
+        { key: 'BERSERKERS_FURY_MAIN', delay: 300 }, // start 0.3s later
+      ],
+    },
+    'Aegis Ward': { parts: [{ key: 'AEGIS_WARD', delay: 0 }] },
+    'Arcane Overcharge': { parts: [{ key: 'ARCANE_OVERCHARGE', delay: 0 }] },
+    'Celestial Rejuvenation': {
+      parts: [{ key: 'CELESTIAL_REJUVENATION', delay: 0 }],
+    },
+    'Drop Animation': { parts: [{ key: 'DROP_ANIMATION', delay: 0 }] },
+    'Fury Unleashed': { parts: [{ key: 'FURY_UNLEASHED', delay: 0 }] },
+    "Guardian's Bulwark": { parts: [{ key: 'GUARDIANS_BULWARK', delay: 0 }] },
+    'Mind Wrap': { parts: [{ key: 'MINDWRAP', delay: 0 }] },
+    'Soul Leech': { parts: [{ key: 'SOUL_LEECH', delay: 0 }] },
+    "Titan's Strike": { parts: [{ key: 'TITAN_STRIKE', delay: 0 }] },
+    'Twin Strike': { parts: [{ key: 'TWIN_STRIKE', delay: 0 }] },
+  }
+
+  const playAbility = async (abilityName, side) => {
+    const config = abilityConfig[abilityName]
+    if (!config) {
+      console.warn(`⚠️ No config found for ability: ${abilityName}`)
+      return
+    }
+
+    const wrapper = containerRef.current?.querySelector(`.summon-${side}`)
+    if (!wrapper) return
+
+    const playPart = async (storeKey) => {
+      const frames = await fetchAbilityFrames(storeKey)
+      if (!frames || frames.length === 0) {
+        console.warn(`⚠️ No frames found for ${storeKey}`)
+        return
+      }
+
+      let overlay = document.createElement('img')
+      overlay.className = `ability-overlay ability-${storeKey.toLowerCase()} ability-${side}`
+      overlay.style.position = 'absolute'
+      overlay.style.top = '0'
+      overlay.style.left = '0'
+      //overlay.style.width = '100%'
+      //overlay.style.height = '100%'
+      overlay.style.zIndex = 5
+      wrapper.appendChild(overlay)
+
+      // Each part runs max 3s
+      const totalDuration = 5000
+      const frameDelay = totalDuration / frames.length
+
+      for (let i = 0; i < frames.length; i++) {
+        overlay.src = frames[i]
+        await new Promise((res) => setTimeout(res, frameDelay))
+      }
+
+      wrapper.removeChild(overlay)
+    }
+
+    // Launch all parts with delay rules
+    for (const part of config.parts) {
+      setTimeout(() => {
+        playPart(part.key)
+      }, part.delay)
+    }
+  }
+
+  const runAnimation = async (abilityDecision) => {
+    if (!abilityDecision) return
+    const { attack, defense } = abilityDecision
+
+    // Case 1: Both selected
+    if (attack && defense) {
+      await playAbility(defense.ability, defense.side)
+      await playAbility(attack.ability, defense.side)
+    }
+    // Case 2: Only attack
+    else if (attack && !defense) {
+      const targetSide = attack.side === 'left' ? 'right' : 'left'
+      await playAbility(attack.ability, targetSide)
+    }
+    // Case 3: Only defense
+    else if (!attack && defense) {
+      await playAbility(defense.ability, defense.side)
+    }
+    // Case 4: Neither
+    else {
+      console.log('🚫 No animations this round')
+    }
+  }
 
   return (
     <div className="battle-container" ref={containerRef}>
@@ -369,6 +496,7 @@ const Battle = ({ user }) => {
       </div>
 
       <div className="battle-area">
+        {/* Left Player */}
         <div
           className="summon-wrapper summon-left"
           style={{ position: 'relative' }}
@@ -385,11 +513,12 @@ const Battle = ({ user }) => {
             className="summon-img glow-orange"
           />
         </div>
+
+        {/* Right Player */}
         <div
           className="summon-wrapper summon-right"
           style={{ position: 'relative' }}
         >
-
           <img
             src={player2SelectedCard ? player2SelectedCard.src : cardHolder}
             className="card-img"

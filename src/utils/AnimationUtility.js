@@ -9,12 +9,10 @@ const blobToBase64 = (blob) =>
 
 // 🔹 Global memory cache
 const animationMemoryCache = new Map() // stores {name -> base64[]}
-const decodedCache = new Map() // stores {name -> Image[]}
 
 // ----------------------------------------------------
 // MAIN FUNCTION: Cache all animations into IndexedDB + Memory (base64 only)
 // ----------------------------------------------------
-
 export const setupAnimationsDB = async () => {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open('Animations', 1)
@@ -45,17 +43,26 @@ export const setupAnimationsDB = async () => {
     request.onsuccess = async (event) => {
       const db = event.target.result
 
-      // If already cached, just load into memory map
+      // Already cached → load memory
       if (localStorage.getItem('animationsCached') === 'true') {
         console.log(
           '✅ Animations already cached, loading from IndexedDB to memory...'
         )
-        await preloadAllFromDB(db)
+        for (const storeName of db.objectStoreNames) {
+          const tx = db.transaction(storeName, 'readonly')
+          const store = tx.objectStore(storeName)
+          const allReq = store.getAll()
+          allReq.onsuccess = () => {
+            animationMemoryCache.set(
+              storeName,
+              allReq.result.map((f) => f.dataUrl)
+            )
+          }
+        }
         return resolve(db)
       }
 
       console.log('⏬ Downloading and caching animations in batches...')
-
       const animationMap = {
         AEGIS_WARD: {
           folder: 'AEGIS_WARD',
@@ -119,17 +126,13 @@ export const setupAnimationsDB = async () => {
 
       for (const [storeName, info] of Object.entries(animationMap)) {
         const tasks = []
-
         for (let i = 1; i <= info.frames; i++) {
           const fileName = `${info.baseName}${String(i).padStart(3, '0')}.png`
           const filePath = `/animations/${info.folder}/${fileName}`
-
           tasks.push(
             fetch(filePath)
               .then((res) => {
                 if (!res.ok) throw new Error(`File not found: ${filePath}`)
-                if (!res.headers.get('content-type')?.includes('image/png'))
-                  throw new Error(`Not a PNG: ${filePath}`)
                 return res.blob()
               })
               .then(blobToBase64)
@@ -141,7 +144,6 @@ export const setupAnimationsDB = async () => {
           )
         }
 
-        // Process in batches
         for (let j = 0; j < tasks.length; j += BATCH_SIZE) {
           const batch = tasks.slice(j, j + BATCH_SIZE)
           const results = await Promise.all(batch)
@@ -154,7 +156,6 @@ export const setupAnimationsDB = async () => {
             await new Promise((r) => (tx.oncomplete = r))
           }
 
-          // Also push into memory cache
           if (!animationMemoryCache.has(storeName))
             animationMemoryCache.set(storeName, [])
           validResults.forEach((item) =>
@@ -176,55 +177,35 @@ export const setupAnimationsDB = async () => {
 }
 
 // ----------------------------------------------------
-// HELPER: Load all from IndexedDB into memory (base64 only)
+// FETCH SPECIFIC ABILITY FRAMES (for battle)
 // ----------------------------------------------------
+// fetchAbilityFrames: fetches frames for 1 ability only
+export const fetchAbilityFrames = async (abilityName) => {
+  // Check cache first (must be array)
+  if (animationMemoryCache.has(abilityName)) {
+    const cached = animationMemoryCache.get(abilityName)
+    if (Array.isArray(cached)) return cached
+    // If cached value is an object (all frames), reload single ability frames below
+  }
 
-const preloadAllFromDB = async (db) => {
-  const stores = db.objectStoreNames
-  for (let i = 0; i < stores.length; i++) {
-    const storeName = stores[i]
-    const tx = db.transaction(storeName, 'readonly')
-    const store = tx.objectStore(storeName)
-    const req = store.getAll()
-    await new Promise((resolve) => {
-      req.onsuccess = () => {
-        animationMemoryCache.set(
-          storeName,
-          req.result.map((r) => r.dataUrl)
-        )
-        resolve()
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open('Animations', 1)
+    request.onsuccess = (event) => {
+      const db = event.target.result
+
+      if (!db.objectStoreNames.contains(abilityName)) return resolve([])
+
+      const tx = db.transaction(abilityName, 'readonly')
+      const store = tx.objectStore(abilityName)
+      const getAllRequest = store.getAll()
+
+      getAllRequest.onsuccess = () => {
+        const frames = getAllRequest.result.map((f) => f.dataUrl)
+        animationMemoryCache.set(abilityName, frames) // Cache single ability frames as Array
+        resolve(frames)
       }
-    })
-    console.log(`📦 Loaded ${storeName} into memory`)
-  }
-}
-
-// ----------------------------------------------------
-// SECOND FUNCTION: Decode 2 animations on demand
-// ----------------------------------------------------
-
-export const decodeAnimations = async (names = []) => {
-  // Clear previously decoded
-  decodedCache.clear()
-
-  for (const name of names) {
-    const base64Array = animationMemoryCache.get(name)
-    if (!base64Array) {
-      console.warn(`⚠️ Animation ${name} not found in memory`)
-      continue
+      getAllRequest.onerror = () => reject(getAllRequest.error)
     }
-
-    const decodedFrames = []
-    for (const dataUrl of base64Array) {
-      const img = new Image()
-      img.src = dataUrl
-      await img.decode()
-      decodedFrames.push(img)
-    }
-
-    decodedCache.set(name, decodedFrames)
-    console.log(`✅ Decoded ${name} into Image[]`)
-  }
-
-  return decodedCache
+    request.onerror = (e) => reject(e.target.error)
+  })
 }

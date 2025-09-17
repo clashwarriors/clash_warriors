@@ -400,3 +400,186 @@
 .ability-btn.selected {
   border: 2px solid #ffd700; /* highlight selected ability */
 }
+
+/* Animation Container */ /* Animation Container */ /* Animation Container */ /* Animation Container */ /* Animation Container */
+/* Animation Container */ /* Animation Container */ /* Animation Container */ /* Animation Container */ /* Animation Container */
+/* Animation Container */ /* Animation Container */ /* Animation Container */ /* Animation Container */ /* Animation Container */
+/* Animation Container */ /* Animation Container */ /* Animation Container */ /* Animation Container */ /* Animation Container */
+/* Animation Container */ /* Animation Container */ /* Animation Container */ /* Animation Container */ /* Animation Container */
+
+/* GENERAL OVERLAY */
+.ability-overlays {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none; /* don't block clicks */
+}
+
+.ability-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 5;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  /* optional: transition for fade-in/out */
+}
+
+/* ------------------ LEFT SIDE ------------------ */
+
+/* Attack */
+
+.ability-berserkers_fury_main.ability-left {
+  margin-top: -80px;
+  margin-left: -60px;
+  width: 300px;
+}
+
+.ability-berserkers_fury_hor.ability-left {
+  margin-top: -65px;
+  margin-left: 70px;
+  width: 18px;
+  transform: scaleX(-1); /* Flip horizontally */
+}
+
+.ability-fury_unleashed.ability-left {
+  margin-top: -65px;
+  margin-left: -30px;
+  width: 220px;
+}
+
+.ability-soul_leech.ability-left {
+  margin-top: -65px;
+  margin-left: -39px;
+  width: 240px;
+}
+
+.ability-titan_strike.ability-left {
+  margin-top: -67px;
+  margin-left: -30px;
+  width: 220px;
+}
+
+.ability-twin_strike.ability-left {
+  margin-top: -65px;
+  margin-left: -30px;
+  width: 220px;
+}
+
+.ability-mindwrap.ability-left {
+  margin-top: -65px;
+  margin-left: -43px;
+  width: 240px;
+}
+
+/*Defence */
+
+.ability-aegis_ward.ability-left {
+  margin-top: -65px;
+  margin-left: -30px;
+  width: 220px;
+}
+
+.ability-arcane_overcharge.ability-left {
+  margin-top: -65px;
+  margin-left: -55px;
+  width: 270px;
+}
+
+.ability-celestial_rejuvenation.ability-left {
+  margin-top: -65px;
+  margin-left: -30px;
+  width: 220px;
+}
+
+.ability-guardians_bulwark.ability-left {
+  margin-top: -65px;
+  margin-left: -30px;
+  width: 220px;
+}
+
+/*Others */
+
+.ability-drop_animation.ability-left {
+  margin-top: -65px;
+  margin-left: -30px;
+  width: 220px;
+}
+
+/* ------------------ RIGHT SIDE ------------------ */
+
+/* Attack */
+
+.ability-mindwrap.ability-right {
+  margin-top: -65px;
+  margin-left: -36px;
+  width: 240px;
+}
+.ability-soul_leech.ability-right {
+  margin-top: -65px;
+  margin-left: -37px;
+  width: 240px;
+}
+.ability-titan_strike.ability-right {
+  margin-top: -67px;
+  margin-left: -25px;
+  width: 220px;
+}
+.ability-twin_strike.ability-right {
+  margin-top: -67.3px;
+  margin-left: -25px;
+  width: 220px;
+}
+
+.ability-fury_unleashed.ability-right {
+  margin-top: -65px;
+  margin-left: -25px;
+  width: 220px;
+}
+
+.ability-berserkers_fury_main.ability-right {
+  margin-top: -80px;
+  margin-left: -60px;
+  width: 300px;
+}
+.ability-berserkers_fury_hor.ability-right {
+  margin-top: -70px;
+  margin-left: -105px;
+  width: 180px;
+}
+
+/* Defence */
+
+.ability-aegis_ward.ability-right {
+  margin-top: -65px;
+  margin-left: -25px;
+  width: 220px;
+}
+.ability-arcane_overcharge.ability-right {
+  margin-top: -65px;
+  margin-left: -56px;
+  width: 270px;
+}
+
+.ability-celestial_rejuvenation.ability-right {
+  margin-top: -60px;
+  margin-left: -25px;
+  width: 220px;
+}
+
+.ability-guardians_bulwark.ability-right {
+  margin-top: -65px;
+  margin-left: -25px;
+  width: 220px;
+}
+
+/* Others */
+
+.ability-drop_animation.ability-right {
+  margin-top: -65px;
+  margin-left: -25px;
+  width: 220px;
+}

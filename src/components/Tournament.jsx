@@ -20,7 +20,7 @@ import { getAllCardsByRarity } from '../utils/cardsStorer'
 import { getUserData } from '../utils/indexedDBService'
 import { joinQueue, leaveQueue } from './shared/joinQueue'
 import { listenForMatch } from './shared/matchListner'
-import { setupAnimationsDB } from '../utils/AnimationUtility'
+import { setupAnimationsDB, fetchAbilityFrames } from '../utils/AnimationUtility'
 
 const Tournament = ({ user }) => {
   // eslint-disable-next-line no-unused-vars
@@ -48,7 +48,8 @@ const Tournament = ({ user }) => {
   useEffect(() => {
     if (user?.userId) {
       setLoading(true)
-      setupAnimationsDB();
+      setupAnimationsDB()
+      fetchAbilityFrames()
       const userRef = ref(realtimeDB, `users/${user.userId}`)
 
       get(userRef)
