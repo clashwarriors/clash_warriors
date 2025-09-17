@@ -55,6 +55,7 @@ const Battle = ({ user }) => {
   const [cardSelected, setCardSelected] = useState(false)
   const [usedAbilities, setUsedAbilities] = useState([])
   const [hasEndedTurn, setHasEndedTurn] = useState(false)
+  const [phaseAnnouncement, setPhaseAnnouncement] = useState(null)
 
   const [currentAbilityDecision, setCurrentAbilityDecision] = useState({
     attack: null,
@@ -131,6 +132,16 @@ const Battle = ({ user }) => {
         updateRemainingTime()
         if (window._phaseTimer) clearInterval(window._phaseTimer)
         window._phaseTimer = setInterval(updateRemainingTime, 1000)
+      }
+
+      if (data.currentPhase) {
+        setPhase(data.currentPhase)
+
+        // Trigger announcement
+        setPhaseAnnouncement(data.currentPhase)
+
+        // Clear it after ~2s
+        setTimeout(() => setPhaseAnnouncement(null), 2000)
       }
 
       // Used cards & abilities
@@ -478,19 +489,47 @@ const Battle = ({ user }) => {
   return (
     <div className="battle-container" ref={containerRef}>
       <div className="battle-header">
+        {/* Left Player */}
         <div className="battle-header-left">
           <img src={user.photo_url} alt="Player Avatar" className="avatar" />
-          <p>{player1Name} HP</p>
-          <p>{player1Hp}</p>
-          <p>{player1Role}</p>
+          <div className="player-info">
+            <p className="player-name">
+              {player1Name}{' '}
+              {player1Role === 'attack' && (
+                <span className="role-icon">⚔️</span>
+              )}
+              {player1Role === 'defense' && (
+                <span className="role-icon">🛡️</span>
+              )}
+            </p>
+            <div className="hp-bar-container">
+              <div className="hp-bar" style={{ width: `${player1Hp}%` }} />
+            </div>
+          </div>
         </div>
-        <div className="battle-header-center">
-          <p className="battle-timer">{remainingTime}s</p>
+
+        <div className="timer-text">
+          {remainingTime > 0 ? `${remainingTime}s` : ''}
         </div>
+
+        {/* Right Player */}
         <div className="battle-header-right">
-          <p>{player2Name}</p>
-          <p>{player2Hp}</p>
-          <p>{player2Role}</p>
+          <div className="player-info">
+            <p className="player-name">
+              {player2Role === 'attack' && (
+                <span className="role-icon">⚔️</span>
+              )}
+              {player2Role === 'defense' && (
+                <span className="role-icon">🛡️</span>
+              )}
+              {'    '}
+              {'    '}
+              {player2Name}
+            </p>
+            <div className="hp-bar-container">
+              <div className="hp-bar" style={{ width: `${player2Hp}%` }} />
+            </div>
+          </div>
           <img src="/assets/gameLogo.avif" className="avatar" />
         </div>
       </div>
@@ -690,6 +729,12 @@ const Battle = ({ user }) => {
               Earn 10K Coins
             </button>
           </div>
+        </div>
+      )}
+
+      {phaseAnnouncement && (
+        <div className="phase-announcement">
+          {phaseAnnouncement.toUpperCase()}
         </div>
       )}
     </div>

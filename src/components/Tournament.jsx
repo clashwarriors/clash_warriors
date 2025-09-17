@@ -3,20 +3,13 @@ import { Link, useNavigate } from 'react-router-dom'
 import { realtimeDB } from '../firebase'
 import {
   ref,
-  query,
-  orderByChild,
-  equalTo,
-  onChildAdded,
-  off,
   onValue,
   get,
-  remove,
 } from 'firebase/database'
 import DefaultDeckModal from './tournament/DefaultDeckModal'
 import './tournament/style/tournament.style.css'
 import { triggerHapticFeedback } from './tournament/utils/haptic'
 import CachedImage from './Shared/CachedImage'
-import { getAllCardsByRarity } from '../utils/cardsStorer'
 import { getUserData } from '../utils/indexedDBService'
 import { joinQueue, leaveQueue } from './shared/joinQueue'
 import { listenForMatch } from './shared/matchListner'
