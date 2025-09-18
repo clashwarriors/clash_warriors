@@ -68,51 +68,55 @@ const Battle = ({ user }) => {
 
     const matchRef = ref(realtimeDB, `ongoingBattles/${matchID}`)
     let finishTimeout = null
+
     const unsubscribe = onValue(matchRef, (snapshot) => {
       const data = snapshot.val()
       if (!data) return console.log('No match data found in Realtime DB')
 
-      setMatch(data)
+      // ✅ Normalize player sides
+      const isSelfP1 = data.player1?.playerId === userId
+      const playerSelf = isSelfP1 ? data.player1 : data.player2
+      const playerOpponent = isSelfP1 ? data.player2 : data.player1
 
-      const playerKey = 'player1'
-      const opponentKey = 'player2'
+      setMatch({ ...data, playerSelf, playerOpponent })
 
-      // Extract raw HP
-      const rawP1Hp = data.player1?.synergy || 0
-      const rawP2Hp = data.player2?.synergy || 0
-      const maxHP = Math.max(rawP1Hp, rawP2Hp, 100)
+      // ✅ HP
+      const rawSelfHp = playerSelf?.synergy || 0
+      const rawOppHp = playerOpponent?.synergy || 0
+      const maxHP = Math.max(rawSelfHp, rawOppHp, 100)
       const toPercent = (synergy) => Math.round((synergy / maxHP) * 100)
 
-      setPlayer1Hp(toPercent(rawP1Hp))
-      setPlayer2Hp(toPercent(rawP2Hp))
+      setPlayer1Hp(toPercent(rawSelfHp))
+      setPlayer2Hp(toPercent(rawOppHp))
 
-      // Current round
-      const currentRoundData = data.player1?.currentRound || {}
+      // ✅ Current round
+      const currentRoundData = playerSelf?.currentRound || {}
       setCurrentRound((prev) => ({
         ...prev,
-        [playerKey]: currentRoundData,
+        self: currentRoundData,
       }))
 
-      // Reset selections
+      // ✅ Reset selections
       setCardSelected(false)
       setSelectedAbility(null)
       setSelectedCard(
         currentRoundData.cardId ? { src: currentRoundData.cardPhotoSrc } : null
       )
       setPlayer2SelectedCard(
-        data.player2?.currentRound?.cardId
-          ? { src: data.player2.currentRound.cardPhotoSrc }
+        playerOpponent?.currentRound?.cardId
+          ? { src: playerOpponent.currentRound.cardPhotoSrc }
           : null
       )
 
-      // Names & roles
-      setPlayer1Name(data.player1?.userName || 'Player1')
-      setPlayer2Name(data.player2?.userName || 'Player2')
-      setPlayer1Role(data.player1?.currentRole || 'attack')
-      setPlayer2Role(data.player2?.currentRole || 'defense')
+      // ✅ Names & roles
+      setPlayer1Name(playerSelf?.userName || 'You')
+      setPlayer2Name(playerOpponent?.userName || 'Opponent')
+      setPlayer1Role(playerSelf?.currentRole || 'attack')
+      setPlayer2Role(playerOpponent?.currentRole || 'defense')
 
-      setIsPlayer1(true)
+      setIsPlayer1(true) // logged-in user is always "left side"
 
+      // ✅ Phase
       if (data.currentPhase) setPhase(data.currentPhase)
 
       if (data.currentPhase && data.phaseStartTime) {
@@ -131,15 +135,14 @@ const Battle = ({ user }) => {
 
         // Trigger announcement
         setPhaseAnnouncement(data.currentPhase)
-
-        // Clear it after ~2s
         setTimeout(() => setPhaseAnnouncement(null), 2000)
       }
 
-      // Used cards & abilities
-      const previousRoundsObj = data.player1?.previousRounds || {}
+      // ✅ Used cards & abilities
+      const previousRoundsObj = playerSelf?.previousRounds || {}
       const previousRoundsArr = Object.values(previousRoundsObj)
       const currentRoundAbility = currentRoundData.abilitySelected || null
+
       const allUsedAbilities = [
         ...previousRoundsArr.map((r) => r.ability).filter(Boolean),
         currentRoundAbility,
@@ -147,61 +150,49 @@ const Battle = ({ user }) => {
       setUsedAbilities(allUsedAbilities)
 
       const usedCards = previousRoundsArr.map((r) => r.cardId).filter(Boolean)
-      const usedAbilities = previousRoundsArr
-        .map((r) => r.ability)
-        .filter(Boolean)
-      setPreviousRounds({ [playerKey]: previousRoundsObj })
+      setPreviousRounds({ self: previousRoundsObj })
       setUsedCardIds(usedCards)
 
-      // Abilities selected this round
+      // ✅ Abilities selected this round
+      const selfAbility = playerSelf?.currentRound?.abilitySelected
+      const oppAbility = playerOpponent?.currentRound?.abilitySelected
 
-      const p1Ability = data.player1?.currentRound?.abilitySelected
-      const p2Ability = data.player2?.currentRound?.abilitySelected
+      const selfRole = playerSelf?.currentRole || 'attack'
+      const oppRole = playerOpponent?.currentRole || 'defense'
 
-      const player1Role = data.player1?.currentRole || 'attack'
-      const player2Role = data.player2?.currentRole || 'defense'
-
-      // Initialize
       const abilityDecision = { attack: null, defense: null }
 
-      // Both selected
-      if (p1Ability && p2Ability) {
-        // Assign defender first (animation runs on defender)
-        if (player1Role === 'defense')
-          abilityDecision.defense = { side: 'left', ability: p1Ability }
-        if (player2Role === 'defense')
-          abilityDecision.defense = { side: 'right', ability: p2Ability }
+      if (selfAbility && oppAbility) {
+        // Both selected → defense first
+        if (selfRole === 'defense')
+          abilityDecision.defense = { side: 'left', ability: selfAbility }
+        if (oppRole === 'defense')
+          abilityDecision.defense = { side: 'right', ability: oppAbility }
 
-        // Then assign attacker
-        if (player1Role === 'attack')
-          abilityDecision.attack = { side: 'left', ability: p1Ability }
-        if (player2Role === 'attack')
-          abilityDecision.attack = { side: 'right', ability: p2Ability }
-
-        // Only player1 selected
-      } else if (p1Ability) {
-        if (player1Role === 'attack')
-          abilityDecision.attack = { side: 'left', ability: p1Ability }
-        if (player1Role === 'defense')
-          abilityDecision.defense = { side: 'left', ability: p1Ability }
-
-        // Only player2 selected
-      } else if (p2Ability) {
-        if (player2Role === 'attack')
-          abilityDecision.attack = { side: 'right', ability: p2Ability }
-        if (player2Role === 'defense')
-          abilityDecision.defense = { side: 'right', ability: p2Ability }
-
-        // None selected → leave both null
+        if (selfRole === 'attack')
+          abilityDecision.attack = { side: 'left', ability: selfAbility }
+        if (oppRole === 'attack')
+          abilityDecision.attack = { side: 'right', ability: oppAbility }
+      } else if (selfAbility) {
+        if (selfRole === 'attack')
+          abilityDecision.attack = { side: 'left', ability: selfAbility }
+        if (selfRole === 'defense')
+          abilityDecision.defense = { side: 'left', ability: selfAbility }
+      } else if (oppAbility) {
+        if (oppRole === 'attack')
+          abilityDecision.attack = { side: 'right', ability: oppAbility }
+        if (oppRole === 'defense')
+          abilityDecision.defense = { side: 'right', ability: oppAbility }
       }
 
       setCurrentAbilityDecision(abilityDecision)
       console.log('⚡ Ability decision this round:', abilityDecision)
+
       if (data.currentPhase === PHASES.BATTLE) {
         runAnimation(abilityDecision)
       }
 
-      // End of match
+      // ✅ End of match
       if (
         data.currentPhase === 'finished' ||
         data.currentPhase === 'cancelled'
@@ -258,13 +249,21 @@ const Battle = ({ user }) => {
     if (phase !== PHASES.SELECTION || cardSelected) return // block extra clicks
 
     try {
+      console.log('🟢 Sending select-card request with:', {
+        matchID,
+        playerId: userId,
+        cardId: card.cardId,
+        photo: card.photo,
+        stats: card.stats,
+      })
+
       const res = await fetch(
         `${backendURL}/api/battle/${matchID}/select-card`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            useId: userId,
+            playerId: userId, // 👈 send logged-in player's ID
             cardId: card.cardId,
             photo: card.photo,
             stats: card.stats,
@@ -273,48 +272,43 @@ const Battle = ({ user }) => {
       )
 
       const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'Failed to select card')
-
-      console.log('Card selected successfully:', data)
-      setShowAbilityPopup(true)
-      setCardSelected(true) // prevent re-select until next round
+      if (data.success) {
+        console.log(`✅ Card selected as ${data.dbKey}:`, card)
+        setSelectedCard(card)
+      } else {
+        console.warn('❌ Server rejected:', data)
+        alert(data.error || 'Failed to select card')
+      }
     } catch (err) {
-      console.error('Failed to select card:', err)
+      console.error('Error selecting card:', err)
     }
   }
 
   const handleAbilityClick = async (abilityKey) => {
     if (phase !== PHASES.SELECTION) return
-    if (!match || !userId) return console.error('No match or userId available')
 
     try {
-      const isPlayer1 = match.player1.playerId === userId
-      const playerKey = isPlayer1 ? 'player1' : 'player2'
-
       const res = await fetch(
         `${backendURL}/api/battle/${matchID}/select-ability`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId: userId, abilityKey }),
+          body: JSON.stringify({
+            playerId: currentUserId, // 👈 send logged-in player's ID
+            abilityKey,
+          }),
         }
       )
 
       const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'Failed to select ability')
-
-      console.log(`Ability ${abilityKey} selected successfully:`, data)
-
-      // ✅ Update local state for UI
-      if (isPlayer1) setPlayer1Ability(abilityKey)
-      else setPlayer2Ability(abilityKey)
-
-      // ✅ Also update selectedAbility for button enable
-      setSelectedAbility(abilityKey)
-
-      setShowAbilityPopup(false)
+      if (data.success) {
+        console.log(`Ability ${abilityKey} chosen by ${data.dbKey}`)
+        setSelectedAbility(abilityKey)
+      } else {
+        alert(data.error || 'Failed to select ability')
+      }
     } catch (err) {
-      console.error('Failed to select ability:', err)
+      console.error('Error selecting ability:', err)
     }
   }
 
