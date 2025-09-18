@@ -2,7 +2,7 @@ import React, { useState, useEffect, Suspense, lazy } from 'react'
 import {
   BrowserRouter as Router,
   Routes,
-  Route,
+  Route, 
   useLocation,
   useNavigate,
 } from 'react-router-dom'
