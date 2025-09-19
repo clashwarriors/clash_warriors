@@ -7,7 +7,7 @@ const PHASES = {
 
 const PHASE_TIMERS = {
   cooldown: 5000,
-  selection: 1000000,
+  selection: 10000,
   battle: 10000,
 }
 

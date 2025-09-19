@@ -220,6 +220,7 @@ const Battle = ({ user }) => {
       console.log('⚡ Ability decision this round:', abilityDecision)
       if (data.currentPhase === PHASES.BATTLE) {
         runAnimation(abilityDecision)
+        setShowAbilityPopup(false)
       }
 
       // End of match
@@ -682,7 +683,7 @@ const Battle = ({ user }) => {
             {(finalResult === 'user' || finalResult === 'tie') && (
               <p className="reward-text" style={{ marginTop: '-10px' }}>
                 {finalResult === 'user'
-                  ? '💰 You earned 10,000 Coins!'
+                  ? '💰 You earned 30,000 Coins!'
                   : '🎁 You earned 5,000 Coins!'}
               </p>
             )}
