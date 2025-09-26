@@ -229,11 +229,12 @@ const MainContent = React.memo(({ user, status }) => {
           path="/settings"
           element={<Settings user={user} status={status} />}
         />
-        <Route path="/tutorial-battle" element={<TutorialBattle />} />
+        <Route
+          path="/tutorial-battle/:matchID"
+          element={<TutorialBattle user={user} status={status} />}
+        />
         <Route path="/new" element={<FirebaseImage />} />
       </Routes>
-
-      {/* Conditionally hide the footer based on the page */}
       {!shouldHideFooter && <Footer />}
     </div>
   )

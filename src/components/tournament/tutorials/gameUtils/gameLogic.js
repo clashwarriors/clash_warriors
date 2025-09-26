@@ -8,8 +8,8 @@ export const PHASES = {
 
 export const ROUND_DURATION_MS = {
   COOLDOWN: 5000,
-  SELECTION: 10000,
-  BATTLE: 10000,
+  SELECTION: 5000,
+  BATTLE: 3000,
 }
 
 export const TOTAL_ROUNDS = 5
@@ -88,7 +88,7 @@ export const shouldFinalizeMatch = (startTime) => {
 }
 
 // --- In-Memory Backend Store ---
-const roundDataStore = {} // matchID: { rounds, totalSynergy, botTimer, botDeck }
+export const roundDataStore = {} // matchID: { rounds, totalSynergy, botTimer, botDeck }
 
 // --- Logic Utilities ---
 export const selectRandomCard = (deck) => {
@@ -99,19 +99,23 @@ export const selectRandomCard = (deck) => {
 
 // --- Core Battle Logic ---
 export const initializeMatchStore = (matchID, userDeck, botDeck) => {
-  if (!roundDataStore[matchID]) {
-    roundDataStore[matchID] = {
-      rounds: Array(TOTAL_ROUNDS)
-        .fill(null)
-        .map(() => ({ userCard: null, botCard: null })),
-      totalSynergy: { user: 0, bot: 0 },
-      botTimer: Array(TOTAL_ROUNDS).fill(null),
-      botDeck: botDeck || [],
-    }
-
-    if (botDeck) {
-      autoScheduleAllBotMoves(matchID)
-    }
+  roundDataStore[matchID] = {
+    rounds: Array(TOTAL_ROUNDS)
+      .fill(null)
+      .map(() => ({
+        userCard: null,
+        botCard: null,
+        userAbility: null,
+        botAbility: null,
+        usedCards: [],
+      })),
+    totalSynergy: { user: 0, bot: 0 },
+    botTimer: Array(TOTAL_ROUNDS).fill(null),
+    botDeck: userDeck || [],
+    usedCardsGlobal: [],
+  }
+  if (botDeck) {
+    autoScheduleAllBotMoves(matchID)
   }
 }
 
@@ -144,34 +148,102 @@ export const scheduleBotMove = (matchID, round) => {
   const delay = 2000 + Math.floor(Math.random() * 3000)
   store.botTimer[round] = setTimeout(() => {
     const botCard = selectRandomCard(store.botDeck)
+
+    // ✅ Ensure bot never picks a used card
+    if (store.usedCardsGlobal.includes(botCard.cardID)) return
+
     store.rounds[round].botCard = botCard
+    store.usedCardsGlobal.push(botCard.cardID) // mark global
     store.totalSynergy.bot += botCard?.synergy || 0
 
     console.log(
-      `🤖 Bot auto-selected (round ${round}) from its deck with synergy: ${botCard?.synergy || 0}`
+      `🤖 Round ${round + 1} | BOT selected card: ${botCard.name} (ID: ${botCard.cardID}, synergy: ${botCard.synergy})`
     )
   }, delay)
 }
 
-export const handleCardSelection = (
-  matchID,
-  selectedCard,
-  userDeck,
-  startTime
-) => {
-  const round = getCurrentRound(startTime)
-  initializeMatchStore(matchID)
-
+export const scheduleBotAbility = (matchID, round) => {
   const store = roundDataStore[matchID]
+  if (!store || store.rounds[round].botAbility) return
+
+  const delay = 2000 + Math.floor(Math.random() * 3000)
+  setTimeout(() => {
+    const randomAbility =
+      ATTACK_ABILITIES[Math.floor(Math.random() * ATTACK_ABILITIES.length)]
+    handleAbilitySelection(matchID, randomAbility, 'bot')
+    console.log(
+      `🤖 Round ${round + 1} | BOT selected ability: ${randomAbility}`
+    )
+  }, delay)
+}
+
+export const handleCardSelection = (matchID, selectedCard, player = 'user') => {
+  const store = roundDataStore[matchID]
+  if (!store) return false
+
+  const round = getCurrentRound(store.startTime)
   const roundData = store.rounds[round]
 
-  if (!roundData.userCard) {
-    roundData.userCard = selectedCard
-    store.totalSynergy.user += selectedCard.synergy || 0
+  const cardKey = selectedCard.cardID
 
+  // Block if card already used in any previous round
+  if (store.usedCardsGlobal.includes(cardKey)) {
     console.log(
-      `🧠 User selected for round ${round} with synergy: ${selectedCard.synergy || 0}`
+      `⚠️ ${player} attempted to select a card already used in this match: ${cardKey}`
     )
+    return false // selection blocked
+  }
+
+  // Save selection
+  roundData.userCard = selectedCard
+  roundData.usedCards.push(cardKey) // round-specific tracking
+  store.usedCardsGlobal.push(cardKey) // match-wide tracking
+  store.totalSynergy[player] += selectedCard.synergy || 0
+
+  // ✅ Log card selection
+  console.log(
+    `🃏 Round ${round + 1} | ${player.toUpperCase()} selected card: ${selectedCard.name} (ID: ${cardKey}, synergy: ${selectedCard.synergy})`
+  )
+
+  return true
+}
+
+export const handleAbilitySelection = (
+  matchID,
+  abilityKey,
+  player = 'user'
+) => {
+  const store = roundDataStore[matchID]
+  if (!store) return
+
+  const round = getCurrentRound(store.startTime || Date.now())
+  const roundData = store.rounds[round]
+
+  const abilityField = player === 'user' ? 'userAbility' : 'botAbility'
+  if (!roundData[abilityField]) {
+    roundData[abilityField] = abilityKey
+
+    // Calculate synergy from abilityWeights
+    let abilitySynergy = 0
+    if (abilityWeights[abilityKey.toLowerCase()]) {
+      const weights = abilityWeights[abilityKey.toLowerCase()]
+      abilitySynergy = Object.values(weights).reduce((a, b) => a + b, 0)
+      store.totalSynergy[player] += abilitySynergy
+    }
+
+    // ✅ Log ability selection
+    console.log(
+      `⚡ Round ${round + 1} | ${player.toUpperCase()} selected ability: ${abilityKey} (synergy: ${abilitySynergy})`
+    )
+  }
+}
+
+export const autoScheduleAllBotAbilities = (matchID) => {
+  const store = roundDataStore[matchID]
+  if (!store) return
+
+  for (let round = 0; round < TOTAL_ROUNDS; round++) {
+    scheduleBotAbility(matchID, round)
   }
 }
 
@@ -229,4 +301,28 @@ export const manualEndRound = (matchID, round) => {
   }
 
   return false // wait for bot or user
+}
+
+/**
+ * Logs the current round's card and ability selections for both user and bot
+ * @param {string} matchID - The ID of the current match
+ */
+export const logCurrentRoundSelections = (matchID) => {
+  const store = roundDataStore[matchID]
+  if (!store) return console.warn('No match store found for', matchID)
+
+  const round = getCurrentRound(store.startTime || Date.now())
+  const roundData = store.rounds[round]
+  if (!roundData) return console.warn('No round data found for round', round)
+
+  const userCard = roundData.userCard
+  const botCard = roundData.botCard
+  const userAbility = roundData.userAbility
+  const botAbility = roundData.botAbility
+
+  console.log(`🎯 Round ${round + 1} Selections:`)
+  console.log('User Card:', userCard ? userCard.name : 'Not selected yet')
+  console.log('User Ability:', userAbility || 'Not selected yet')
+  console.log('Bot Card:', botCard ? botCard.name : 'Not selected yet')
+  console.log('Bot Ability:', botAbility || 'Not selected yet')
 }

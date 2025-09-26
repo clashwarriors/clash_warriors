@@ -1,4 +1,4 @@
-import { getCards } from '../../../utils/indexedDBService.js'
+import { getCards } from '../../../../utils/indexedDBService.js'
 
 export const createOfflineMatch = async () => {
   console.log('✅ matchMaker triggered (IndexedDB version)')
@@ -19,8 +19,9 @@ export const createOfflineMatch = async () => {
     const defaultDeck = allCards
       .filter((card) => card.defaultDeck === true)
       .map((card) => ({
+        cardID: card.cardId,
         src: card.photo, // use 'photo' not 'photo_url'
-        synergy: card.totalStats, // use 'totalStats' for synergy value
+        stats: card.stats, // use 'totalStats' for synergy value
       }))
 
     // Verify there are exactly 10 defaultDeck cards

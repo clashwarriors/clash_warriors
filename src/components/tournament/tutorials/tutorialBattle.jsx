@@ -1,9 +1,5 @@
 import { useParams, useNavigate } from 'react-router-dom'
 import { useEffect, useState, useRef } from 'react'
-import {
-  showRewardedInterstitialAd1K,
-  showRewardedInterstitialAd10K,
-} from '../utils/adsUtility'
 import '../style/battle.css'
 import botNames from './gameUtils/botName.json'
 import { getUserData, storeUserData } from '../../../utils/indexedDBService'
@@ -24,12 +20,18 @@ import {
   MATCH_TOTAL_TIME,
   selectRandomCard,
   manualEndRound,
+  handleCardSelection,
+  logCurrentRoundSelections,
+  roundDataStore,
+  initializeMatchStore,
 } from './gameUtils/gameLogic'
+
+import { ABILITIES, abilityWeights, abilityConfig } from './gameUtils/abilites'
 
 import CachedImage from '../../shared/CachedImage'
 
 const roundStore = {}
-
+const TOTAL_ROUNDS = 5
 const BattleTutorial = ({ user }) => {
   const { matchID } = useParams()
   const navigate = useNavigate()
@@ -38,22 +40,18 @@ const BattleTutorial = ({ user }) => {
   const [remainingTime, setRemainingTime] = useState(0)
   const [selectedCard, setSelectedCard] = useState(null)
   const [botSelectedCard, setBotSelectedCard] = useState(null)
-  const [dropFrames, setDropFrames] = useState([])
-  const [frameIndex, setFrameIndex] = useState(0)
-  const [animating, setAnimating] = useState(false)
-  const [botAnimating, setBotAnimating] = useState(false)
-  const [botFrameIndex, setBotFrameIndex] = useState(0)
   const [showFinishedModal, setShowFinishedModal] = useState(false)
   const [totalSynergy, setTotalSynergy] = useState({ user: 0, bot: 0 })
-  const [animationDirection, setAnimationDirection] = useState(null)
   const [finalResult, setFinalResult] = useState(null)
-  const [directionalFrames, setDirectionalFrames] = useState([])
-  const [directionFrameIndex, setDirectionFrameIndex] = useState(0)
   const [botName, setBotName] = useState('user123')
-
   const containerRef = useRef(null)
   const intervalRef = useRef(null)
+  const [showAbilityPopup, setShowAbilityPopup] = useState(false)
+  const [selectedAbility, setSelectedAbility] = useState(null)
+  const [usedAbilities, setUsedAbilities] = useState([])
+  const [usedCards, setUsedCards] = useState([])
 
+  const player1Role = match?.player1Role || 'attack' // Default to 'attack' if undefined
   const phaseBadges = {
     [PHASES.COOLDOWN]: '/new/battle/assets/phase/cooldown.png',
     [PHASES.SELECTION]: '/new/battle/assets/phase/selection.png',
@@ -61,6 +59,27 @@ const BattleTutorial = ({ user }) => {
     [PHASES.CANCELLED]: '/new/battle/assets/phase/cancelled.png',
     [PHASES.FINISHED]: '/new/battle/assets/phase/finished.png',
   }
+  useEffect(() => {
+    if (!match) return
+
+    if (!roundDataStore[matchID]) {
+      roundDataStore[matchID] = {
+        rounds: Array(TOTAL_ROUNDS)
+          .fill(null)
+          .map(() => ({
+            userCard: null,
+            botCard: null,
+            userAbility: null,
+            botAbility: null,
+            usedCards: [], // ✅ initialize here
+          })),
+        totalSynergy: { user: 0, bot: 0 },
+        botTimer: Array(TOTAL_ROUNDS).fill(null),
+        botDeck: match.player1Deck || [],
+        usedCardsGlobal: [],
+      }
+    }
+  }, [match])
 
   useEffect(() => {
     const matchData = localStorage.getItem(`match-${matchID}`)
@@ -113,7 +132,6 @@ const BattleTutorial = ({ user }) => {
         clearInterval(intervalRef.current)
         setTimeout(async () => {
           localStorage.removeItem(`match-${matchID}`)
-          await showRewardedInterstitialAd1K(user.userId)
           navigate('/tournament')
         }, 10000)
       }
@@ -141,7 +159,6 @@ const BattleTutorial = ({ user }) => {
       navigate('/tournament')
 
       // ⬇️ Show ad after navigating
-      showRewardedInterstitialAd1K(user.userId)
     }, 1500)
   }
 
@@ -153,7 +170,82 @@ const BattleTutorial = ({ user }) => {
   }, [])
 
   const handleCardClick = (card) => {
-    if (phase !== PHASES.SELECTION || selectedCard) return
+    const round = Math.min(getCurrentRound(match.startTime), TOTAL_ROUNDS - 1)
+    const store = roundDataStore[matchID]
+    if (!store) return console.error('Match store not initialized')
+
+    const roundData = store.rounds[round]
+    if (!roundData) return console.error('Round data not initialized')
+
+    if (!roundData.usedCards) roundData.usedCards = []
+
+    const cardKey = card.cardID
+
+    // ❌ Check if card was used in THIS round
+    if (roundData.usedCards.includes(cardKey)) {
+      alert('You have already used this card in this round!')
+      return
+    }
+
+    // ❌ Check if card was used in ANY previous round of this match
+    if (store.usedCardsGlobal.includes(cardKey)) {
+      alert('You have already used this card in this match!')
+      return
+    }
+
+    // Save card
+    roundData.userCard = card
+    roundData.usedCards.push(cardKey)
+    store.usedCardsGlobal.push(cardKey) // ✅ add to global used list
+
+    setSelectedCard(card)
+    setUsedCards((prev) => [...prev, cardKey])
+
+    handleCardSelection(matchID, card, 'user')
+
+    setTotalSynergy((prev) => ({
+      ...prev,
+      user: prev.user + (card.synergy || 0),
+    }))
+
+    setShowAbilityPopup(true)
+  }
+
+  const handleAbilityClick = (abilityKey) => {
+    if (phase !== PHASES.SELECTION || !selectedCard) return
+    if (!match) return console.error('No match available')
+
+    const round = getCurrentRound(match.startTime)
+
+    // Save ability in round store
+    if (!roundStore[matchID].rounds[round])
+      roundStore[matchID].rounds[round] = {}
+    roundStore[matchID].rounds[round].userAbility = abilityKey
+
+    // Update selectedAbility for UI & disable used abilities
+    setSelectedAbility(abilityKey)
+    setUsedAbilities((prev) => [...prev, abilityKey])
+
+    // Map UI key to abilityConfig key
+    // Map UI key to abilityConfig key using displayName
+    const configKey = Object.keys(abilityConfig).find(
+      (k) => abilityConfig[k].displayName === abilityKey
+    )
+
+    if (!configKey)
+      return console.warn('Ability not found in abilityConfig:', abilityKey)
+
+    // Calculate synergy from weights
+    const weights = abilityWeights[configKey] || {}
+    const abilitySynergy = Object.values(weights).reduce((a, b) => a + b, 0)
+
+    setTotalSynergy((prev) => ({
+      ...prev,
+      user: prev.user + abilitySynergy,
+    }))
+
+    // Close popup
+    setShowAbilityPopup(false)
   }
 
   useEffect(() => {
@@ -161,8 +253,7 @@ const BattleTutorial = ({ user }) => {
       const round = getCurrentRound(match.startTime)
       setSelectedCard(null)
       setBotSelectedCard(null)
-      setDirectionFrameIndex(0)
-      setAnimationDirection(null)
+      setUsedCards(roundDataStore[matchID].rounds[round].usedCards || [])
       if (!roundStore[matchID]) roundStore[matchID] = { rounds: [] }
       if (!roundStore[matchID].rounds[round])
         roundStore[matchID].rounds[round] = {}
@@ -176,10 +267,6 @@ const BattleTutorial = ({ user }) => {
           const botCard = selectRandomCard(match.player1Deck)
           roundStore[matchID].rounds[round].botCard = botCard
           setBotSelectedCard(botCard)
-          setBotFrameIndex(0)
-          setBotAnimating(true)
-          playStoredAudio('gameDropSound')
-          dropHapticFeedback()
 
           // Update synergy for the bot
           setTotalSynergy((prev) => {
@@ -243,13 +330,34 @@ const BattleTutorial = ({ user }) => {
     }
   }, [phase])
 
+  useEffect(() => {
+    if (phase === PHASES.BATTLE) {
+      if (!roundDataStore[matchID]) {
+        console.warn(
+          'No match store found, creating temporary store for',
+          matchID
+        )
+        initializeMatchStore(
+          matchID,
+          match?.player1Deck || [],
+          match?.player1Deck || []
+        )
+      }
+      logCurrentRoundSelections(matchID)
+    }
+  }, [phase, matchID])
+
   if (!match) return <div>Loading battle...</div>
 
   return (
     <div className="battle-container" ref={containerRef}>
       <div className="battle-header">
         <div className="battle-header-left">
-          <img src={user.photo_url} alt="Player Avatar" className="avatar" />
+          <img
+            src="/assets/gameLogo.avif"
+            alt="Player Avatar"
+            className="avatar"
+          />
           <p>{match.playerName}</p>
         </div>
         <div className="battle-header-center">
@@ -299,15 +407,25 @@ const BattleTutorial = ({ user }) => {
       </div>
 
       <div className="deck-section">
-        {match.player1Deck.map((card, i) => (
-          <img
-            key={i}
-            src={card.src}
-            alt={`Card ${i + 1}`}
-            className={`deck-card ${phase !== PHASES.SELECTION ? 'disabled' : ''}`}
-            onClick={() => handleCardClick(card)}
-          />
-        ))}
+        {match.player1Deck.map((card, i) => {
+          const store = roundDataStore[matchID]
+          const isUsedGlobal = store?.usedCardsGlobal?.includes(card.cardID)
+          const isDisabled = phase !== PHASES.SELECTION || isUsedGlobal
+
+          return (
+            <img
+              key={i}
+              src={card.src}
+              alt={`Card ${i + 1}`}
+              className={`deck-card ${isDisabled ? 'disabled' : ''}`}
+              onClick={() => !isDisabled && handleCardClick(card)}
+              style={{
+                opacity: isDisabled ? 0.4 : 1,
+                cursor: isDisabled ? 'not-allowed' : 'pointer',
+              }}
+            />
+          )
+        })}
       </div>
 
       <div className="battle-footer">
@@ -362,13 +480,81 @@ const BattleTutorial = ({ user }) => {
                   navigate('/tournament')
                 } else {
                   alert('Ad not completed. No reward granted.')
-                  navigate('/tournament') // Optional: remove if you only want to navigate on success
+                  navigate('/tournament')
                 }
               }}
               style={{ marginTop: '10px' }}
             >
               Earn 10K Coins
             </button>
+          </div>
+        </div>
+      )}
+
+      {showAbilityPopup && (
+        <div className="ability-popup">
+          <h3>Select an Ability</h3>
+          <div className="abilities-grid">
+            {Object.entries(ABILITIES)
+              .filter(([key, ability]) => {
+                const ATTACK_ABILITIES = [
+                  'TITAN_STRIKE',
+                  'BERSERKERS_FURY',
+                  'MINDWRAP',
+                  'TWIN_STRIKE',
+                  'SOUL_LEECH',
+                  'FURY_UNLEASHED',
+                ]
+                const DEFENSE_ABILITIES = [
+                  'AEGIS_WARD',
+                  'CELESTIAL_REJUVENATION',
+                  'GUARDIANS_BULWARK',
+                  'ARCANE_OVERCHARGE',
+                ]
+
+                if (player1Role === 'attack')
+                  return ATTACK_ABILITIES.includes(key)
+                if (player1Role === 'defense')
+                  return DEFENSE_ABILITIES.includes(key)
+                return false
+              })
+              .map(([key, ability]) => {
+                const abilityImages = {
+                  AEGIS_WARD: '/new/battle/assets/ability/Aegis_Wards.png',
+                  FURY_UNLEASHED:
+                    '/new/battle/assets/ability/Fury_Unleashed.png',
+                  ARCANE_OVERCHARGE:
+                    '/new/battle/assets/ability/Archane_Overcharged.png',
+                  BERSERKERS_FURY:
+                    '/new/battle/assets/ability/Berserkers_Fury.png',
+                  CELESTIAL_REJUVENATION:
+                    '/new/battle/assets/ability/Celestial_Rejuvenation.png',
+                  GUARDIANS_BULWARK:
+                    '/new/battle/assets/ability/Guardian_s_Bulwark.png',
+                  MINDWRAP: '/new/battle/assets/ability/Mind_Wrap.png',
+                  SOUL_LEECH: '/new/battle/assets/ability/Soul_Leech.png',
+                  TITAN_STRIKE: '/new/battle/assets/ability/Titans_Strike.png',
+                  TWIN_STRIKE: '/new/battle/assets/ability/Twin_Strike.png',
+                }
+
+                // ✅ Disable button if ability already used
+                const isUsed = usedAbilities.includes(ability)
+
+                return (
+                  <button
+                    key={ability}
+                    className={`ability-btn ${selectedAbility === ability ? 'selected' : ''} ${isUsed ? 'disabled' : ''}`}
+                    onClick={() => !isUsed && handleAbilityClick(ability)}
+                    type="button"
+                  >
+                    <CachedImage
+                      src={abilityImages[key]}
+                      alt={ability}
+                      className="ability-img"
+                    />
+                  </button>
+                )
+              })}
           </div>
         </div>
       )}

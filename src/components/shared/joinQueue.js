@@ -16,6 +16,7 @@ export const joinQueue = async (userData) => {
     userId: userData.userId,
     userName: userData.username,
     synergy: userData.totalSynergy,
+    inititalSynergy: userData.totalSynergy,
     joinedAt: Date.now(),
   })
 

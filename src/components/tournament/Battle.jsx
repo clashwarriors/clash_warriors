@@ -1,6 +1,6 @@
 import { useParams, useNavigate } from 'react-router-dom'
 import { useEffect, useState, useRef } from 'react'
-import { ref, onValue, off } from 'firebase/database'
+import { ref, onValue, off, update } from 'firebase/database'
 import { showRewardedInterstitialAd10K } from './utils/adsUtility'
 import './style/battle.css'
 import { getCards } from '../../utils/indexedDBService'
@@ -32,6 +32,14 @@ const Battle = ({ user }) => {
   const [playerDeck, setPlayerDeck] = useState([])
   const [player1Hp, setPlayer1Hp] = useState(0)
   const [player2Hp, setPlayer2Hp] = useState(0)
+  const [player1MaxBar, setPlayer1MaxBar] = useState(100)
+  const [player2MaxBar, setPlayer2MaxBar] = useState(100)
+  const rawP1Synergy = match?.player1?.currentSynergy || 100
+  const rawP2Synergy = match?.player2?.currentSynergy || 100
+  const [player1VisiblePercent, setPlayer1VisiblePercent] = useState(100)
+  const [player2VisiblePercent, setPlayer2VisiblePercent] = useState(100)
+  const [player1InitialBar, setPlayer1InitialBar] = useState(100)
+  const [player2InitialBar, setPlayer2InitialBar] = useState(100)
   const [player1Role, setPlayer1Role] = useState('')
   const [player2Role, setPlayer2Role] = useState('')
   const [isPlayer1, setIsPlayer1] = useState(null)
@@ -47,6 +55,7 @@ const Battle = ({ user }) => {
   const [usedAbilities, setUsedAbilities] = useState([])
   const [hasEndedTurn, setHasEndedTurn] = useState(false)
   const [phaseAnnouncement, setPhaseAnnouncement] = useState(null)
+  const [botDeckUploaded, setBotDeckUploaded] = useState(false)
 
   const [currentAbilityDecision, setCurrentAbilityDecision] = useState({
     attack: null,
@@ -54,6 +63,7 @@ const Battle = ({ user }) => {
   })
   const containerRef = useRef(null)
   const intervalRef = useRef(null)
+  const botDeckUploadedRef = useRef(false)
 
   const phaseBadges = {
     [PHASES.COOLDOWN]: '/new/battle/assets/phase/cooldown.png',
@@ -62,7 +72,8 @@ const Battle = ({ user }) => {
     [PHASES.CANCELLED]: '/new/battle/assets/phase/cancelled.png',
   }
 
-  const backend = 'https://cwbackendl.onrender.com'
+  //const backend = 'https://cwbackendl.onrender.com'
+  const backend = 'http://localhost:3000'
 
   useEffect(() => {
     if (!matchID || !userId) return
@@ -96,12 +107,25 @@ const Battle = ({ user }) => {
       }
 
       // HP logic
-      const rawP1Hp = data.player1?.synergy || 0
-      const rawP2Hp = data.player2?.synergy || 0
-      const maxHP = Math.max(rawP1Hp, rawP2Hp, 100)
-      const toPercent = (synergy) => Math.round((synergy / maxHP) * 100)
-      setPlayer1Hp(toPercent(rawP1Hp))
-      setPlayer2Hp(toPercent(rawP2Hp))
+      // Current synergy values
+      const rawP1Synergy = data.player1?.synergy || 0
+      const rawP2Synergy = data.player2?.synergy || 0
+
+      // Max synergy reference from backend
+      const referenceSynergy =
+        data.maxSynergy ||
+        Math.max(
+          data.player1?.initialSynergy || rawP1Synergy,
+          data.player2?.initialSynergy || rawP2Synergy
+        )
+
+      // Calculate percentage relative to reference
+      const player1Percent = Math.round((rawP1Synergy / referenceSynergy) * 100)
+      const player2Percent = Math.round((rawP2Synergy / referenceSynergy) * 100)
+
+      // Set state
+      setPlayer1Hp(player1Percent)
+      setPlayer2Hp(player2Percent)
 
       // Current round (always store left-side player’s round)
       const currentRoundData = isUserPlayer1
@@ -262,19 +286,40 @@ const Battle = ({ user }) => {
   }, [matchID, userId])
 
   useEffect(() => {
+    if (!matchID || !match || botDeckUploadedRef.current) return
+
     const fetchDefaultDeck = async () => {
       try {
         const allCards = await getCards()
-        // Filter only defaultDeck cards
         const defaultDeckCards = allCards.filter((card) => card.defaultDeck)
         setPlayerDeck(defaultDeckCards)
+
+        // Prepare minimal deck for bot
+        const minimalDeck = defaultDeckCards.map((card) => ({
+          cardId: card.cardId,
+          cardPhotoSrc: card.photo,
+          stats: card.stats || {},
+        }))
+
+        let botRef = null
+        if (match.player1?.userId.startsWith('AIBOTPLAYER_')) {
+          botRef = ref(realtimeDB, `ongoingBattles/${matchID}/player1`)
+        } else if (match.player2?.userId.startsWith('AIBOTPLAYER_')) {
+          botRef = ref(realtimeDB, `ongoingBattles/${matchID}/player2`)
+        }
+
+        if (botRef) {
+          await update(botRef, { availableCards: minimalDeck })
+          console.log('Uploaded deck to AI')
+          botDeckUploadedRef.current = true // mark as uploaded
+        }
       } catch (err) {
-        console.error('Failed to fetch cards:', err)
+        console.error('Failed to fetch cards or upload to AI:', err)
       }
     }
 
     fetchDefaultDeck()
-  }, [])
+  }, [matchID, match])
 
   const handleCardClick = async (card) => {
     if (phase !== PHASES.SELECTION || cardSelected) return // block extra clicks
@@ -480,7 +525,7 @@ const Battle = ({ user }) => {
           <img src={user.photo_url} alt="Player Avatar" className="avatar" />
           <div className="player-info">
             <p className="player-name">
-              {player1Name}{' '}
+              {player1Name}
               {player1Role === 'attack' && (
                 <span className="role-icon">⚔️</span>
               )}
@@ -488,6 +533,11 @@ const Battle = ({ user }) => {
                 <span className="role-icon">🛡️</span>
               )}
             </p>
+            <div className="synergy-bar">
+              <div className="synergy-fill" style={{ width: `${player1Hp}%` }}>
+                <span className="synergy-text">{player1Hp}%</span>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -505,10 +555,13 @@ const Battle = ({ user }) => {
               {player2Role === 'defense' && (
                 <span className="role-icon">🛡️</span>
               )}
-              {'    '}
-              {'    '}
               {player2Name}
             </p>
+            <div className="synergy-bar">
+              <div className="synergy-fill" style={{ width: `${player2Hp}%` }}>
+                <span className="synergy-text">{player2Hp}%</span>
+              </div>
+            </div>
           </div>
           <img src="/assets/gameLogo.avif" className="avatar" />
         </div>

@@ -13,6 +13,8 @@ import {
   setupAnimationsDB,
   fetchAbilityFrames,
 } from '../utils/AnimationUtility'
+import CustomAlert from './tournament/tutorials/gameUtils/CustomAlert'
+import { createOfflineMatch } from './tournament/tutorials/gameUtils/matchMaker'
 
 const Tournament = ({ user }) => {
   // eslint-disable-next-line no-unused-vars
@@ -161,6 +163,17 @@ const Tournament = ({ user }) => {
       listenForMatch(userData.userId, navigate)
     } catch (error) {
       console.error(error)
+    }
+  }
+
+  const handlePlayNowTut = async () => {
+    try {
+      const match = await createOfflineMatch(user)
+      navigate(`/tutorial-battle/${match.matchID}`)
+      setIsMatchmaking(true)
+    } catch (error) {
+      // Show alert if deck is incomplete
+      setAlertMessage(error.message)
     }
   }
 
