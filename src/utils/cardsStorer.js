@@ -64,6 +64,7 @@ export const initCardDB = async () => {
 
 
 // Get a card by cardId from a specific rarity store
+
 export const getCardByIdFromRarity = async (rarity, cardId) => {
   const db = await initCardDB()
   return db.get(`cards_${rarity}`, cardId)

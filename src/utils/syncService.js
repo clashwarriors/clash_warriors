@@ -1,4 +1,4 @@
-//syncService.js
+// syncService.js
 
 import {
   getUserData,
@@ -16,47 +16,126 @@ import {
   uploadCardsToFirestore,
 } from './firebaseSyncService'
 
-// One-time init: load from Firestore only if no local data
+import { initCardDB, getAllCardsByRarity } from './cardsStorer' // your IndexedDB card setup
+
+/**
+ * Initialize local IndexedDB data from Firestore for new device
+ */
 export const initializeLocalData = async (userId) => {
   const localUser = await getUserData()
+  const localCards = await getCards()
 
-  if (!localUser) {
+  if (!localUser || !localCards || localCards.length === 0) {
+    console.log('♻️ No local data, fetching from Firestore...')
     const firestoreUser = await fetchUserFromFirestore(userId)
     const firestoreCards = await fetchUserCardsFromFirestore(userId)
 
     if (firestoreUser) {
       await storeUserData(firestoreUser)
-      await storeCards(firestoreCards)
+      if (firestoreCards && firestoreCards.length > 0) {
+        await storeCards(firestoreCards)
+      }
       await setLastUpdate(firestoreUser.lastUpdate || Date.now())
-      console.log('IndexedDB initialized from Firestore.')
+      console.log('✅ IndexedDB initialized from Firestore.')
     } else {
-      console.warn('No user found in Firestore to initialize.')
+      console.warn('⚠️ No user found in Firestore.')
     }
   } else {
-    console.log('Local data already exists. Skipping Firestore init.')
+    console.log('✅ Local data exists. Skipping Firestore init.')
   }
 }
 
-// Manual backup to Firestore (triggered manually)
+/**
+ * Single source of truth: merge local IndexedDB with Firestore
+ * Handles multi-device coins/cards updates
+ */
 export const updateOnline = async (userData) => {
-  const localCards = await getCards()
-
-  if (userData && userData.userId) {
-    await uploadUserToFirestore(userData) // ✅ Now it's correct
-    await uploadCardsToFirestore(userData.userId, localCards)
-    console.log('Local data successfully uploaded to Firestore.')
-  } else {
-    console.warn('No valid user data to upload.')
+  if (!userData || !userData.userId) {
+    console.warn('⚠️ No valid user data to sync.')
+    return
   }
+
+  const userId = userData.userId
+  const localUser = (await getUserData()) || { coins: 0 }
+  const localCards = (await getCards()) || []
+
+  const firestoreUser = await fetchUserFromFirestore(userId)
+  const firestoreCards = (await fetchUserCardsFromFirestore(userId)) || []
+
+  // ----------------------------
+  // 1️⃣ Coins / User Merge
+  // ----------------------------
+  let mergedUser = { ...localUser }
+  if (firestoreUser) {
+    // Use lastUpdate to decide
+    if ((firestoreUser.lastUpdate || 0) > (localUser.lastUpdate || 0)) {
+      mergedUser.coins = firestoreUser.coins
+      mergedUser.lastUpdate = firestoreUser.lastUpdate
+    } else {
+      mergedUser.coins = localUser.coins
+      mergedUser.lastUpdate = localUser.lastUpdate
+    }
+  } else {
+    mergedUser.lastUpdate = Date.now()
+  }
+
+  // ----------------------------
+  // 2️⃣ Cards Merge by cardId
+  // ----------------------------
+  const cardDB = await initCardDB() // IndexedDB card store
+
+  // Map for easy lookup
+  const localCardMap = {}
+  for (const card of localCards) localCardMap[card.cardId] = card
+  const firestoreCardMap = {}
+  for (const card of firestoreCards) firestoreCardMap[card.cardId] = card
+
+  const mergedCards = []
+
+  // Add all unique cards from both sources
+  const allCardIds = new Set([
+    ...Object.keys(localCardMap),
+    ...Object.keys(firestoreCardMap),
+  ])
+  for (const cardId of allCardIds) {
+    if (localCardMap[cardId] && firestoreCardMap[cardId]) {
+      // Both exist, choose latest if you have timestamp per card (optional)
+      mergedCards.push(localCardMap[cardId])
+    } else if (localCardMap[cardId]) {
+      mergedCards.push(localCardMap[cardId])
+      // upload missing card to Firestore
+      await uploadCardsToFirestore(userId, [localCardMap[cardId]])
+    } else if (firestoreCardMap[cardId]) {
+      mergedCards.push(firestoreCardMap[cardId])
+      // add missing card to IndexedDB
+      await storeCards([firestoreCardMap[cardId]])
+    }
+  }
+
+  // ----------------------------
+  // 3️⃣ Save merged data locally
+  // ----------------------------
+  await storeUserData(mergedUser)
+  await storeCards(mergedCards)
+  await setLastUpdate(Date.now())
+
+  // ----------------------------
+  // 4️⃣ Push merged data to Firestore
+  // ----------------------------
+  await uploadUserToFirestore(mergedUser)
+  await uploadCardsToFirestore(userId, mergedCards)
+
+  console.log('✅ Online sync complete. Local & Firestore are consistent.')
 }
 
-// Helper: automatically check username and apply special coins rule
-// const autoCheckSpecialUsername = async (user) => {
-//   if (!user) return
-//   if (user.username === 'ethanclime') {
-//     // Update coins in IndexedDB
-//     user.coins = 1000000000
-//     await storeUserData(user) // saves the updated coins to IndexedDB
-//     console.log('Special user detected! Coins set to 1,000,000 in IndexedDB.')
-//   }
-// }
+/**
+ * Trigger sync manually or after specific actions
+ * e.g., after battle win, referral bonus, or card collection
+ */
+export const triggerSync = async (userData) => {
+  try {
+    await updateOnline(userData)
+  } catch (err) {
+    console.error('⚠️ Failed to sync:', err)
+  }
+}
