@@ -19,9 +19,6 @@ import Footer from './components/Footer'
 import Tournament from './components/Tournament'
 import Premium from './components/Premium'
 import FirebaseImage from './components/new'
-
-import TutorialBattle from './components/tournament/tutorials/tutorialBattle'
-
 // Lazy load components
 const Airdrop = lazy(() => import('./components/Airdrop'))
 const Collections = lazy(() => import('./components/Collections'))
@@ -228,10 +225,6 @@ const MainContent = React.memo(({ user, status }) => {
         <Route
           path="/settings"
           element={<Settings user={user} status={status} />}
-        />
-        <Route
-          path="/tutorial-battle/:matchID"
-          element={<TutorialBattle user={user} status={status} />}
         />
         <Route path="/new" element={<FirebaseImage />} />
       </Routes>

@@ -7,14 +7,12 @@ import './tournament/style/tournament.style.css'
 import { triggerHapticFeedback } from './tournament/utils/haptic'
 import CachedImage from './shared/CachedImage'
 import { getUserData } from '../utils/indexedDBService'
-import { joinQueue, leaveQueue } from './shared/joinQueue'
+import { joinQueue, leaveQueue, joinTutorialQueue } from './shared/joinQueue'
 import { listenForMatch } from './shared/matchListner'
 import {
   setupAnimationsDB,
   fetchAbilityFrames,
 } from '../utils/AnimationUtility'
-import CustomAlert from './tournament/tutorials/gameUtils/CustomAlert'
-import { createOfflineMatch } from './tournament/tutorials/gameUtils/matchMaker'
 
 const Tournament = ({ user }) => {
   // eslint-disable-next-line no-unused-vars
@@ -155,25 +153,24 @@ const Tournament = ({ user }) => {
       const userData = await getUserData()
       if (!userData) return setAlertMessage('User data not found!')
 
-      const added = await joinQueue(userData)
+      // Check if tutorial already completed in localStorage
+      const tutorialCompleted =
+        localStorage.getItem('tutorialCompleted') === 'true'
+
+      const isTutorial = !tutorialCompleted // true only if tutorial not done
+
+      // Decide which queue to join
+      const queueFunction = isTutorial ? joinTutorialQueue : joinQueue
+      const added = await queueFunction(userData)
       if (!added) return
 
       setIsMatchmaking(true)
       setIsMatchmakingModalOpen(true)
-      listenForMatch(userData.userId, navigate)
+
+      // Listen for match and pass tutorial flag
+      listenForMatch(userData.userId, navigate, isTutorial)
     } catch (error) {
       console.error(error)
-    }
-  }
-
-  const handlePlayNowTut = async () => {
-    try {
-      const match = await createOfflineMatch(user)
-      navigate(`/tutorial-battle/${match.matchID}`)
-      setIsMatchmaking(true)
-    } catch (error) {
-      // Show alert if deck is incomplete
-      setAlertMessage(error.message)
     }
   }
 
@@ -282,13 +279,6 @@ const Tournament = ({ user }) => {
             />
           </div>
         </div>
-      )}
-
-      {alertMessage && (
-        <CustomAlert
-          message={alertMessage}
-          onClose={() => setAlertMessage(null)}
-        />
       )}
     </div>
   )

@@ -12,7 +12,8 @@ import CachedImage from '../shared/CachedImage'
 import { getUserData, storeUserData } from '../../utils/indexedDBService'
 import { PHASES, PHASE_TIMERS, ABILITIES } from './utils/battleModifiers'
 import { fetchAbilityFrames } from '../../utils/AnimationUtility'
-import { abilityConfig, abilityWeights } from './weights/abilites' // your ability JSON
+import { abilityConfig } from './weights/abilites' // your ability JSON
+import Joyride from 'react-joyride'
 
 const Battle = ({ user }) => {
   const { matchID } = useParams()
@@ -32,14 +33,8 @@ const Battle = ({ user }) => {
   const [playerDeck, setPlayerDeck] = useState([])
   const [player1Hp, setPlayer1Hp] = useState(0)
   const [player2Hp, setPlayer2Hp] = useState(0)
-  const [player1MaxBar, setPlayer1MaxBar] = useState(100)
-  const [player2MaxBar, setPlayer2MaxBar] = useState(100)
   const rawP1Synergy = match?.player1?.currentSynergy || 100
   const rawP2Synergy = match?.player2?.currentSynergy || 100
-  const [player1VisiblePercent, setPlayer1VisiblePercent] = useState(100)
-  const [player2VisiblePercent, setPlayer2VisiblePercent] = useState(100)
-  const [player1InitialBar, setPlayer1InitialBar] = useState(100)
-  const [player2InitialBar, setPlayer2InitialBar] = useState(100)
   const [player1Role, setPlayer1Role] = useState('')
   const [player2Role, setPlayer2Role] = useState('')
   const [isPlayer1, setIsPlayer1] = useState(null)
@@ -56,13 +51,15 @@ const Battle = ({ user }) => {
   const [hasEndedTurn, setHasEndedTurn] = useState(false)
   const [phaseAnnouncement, setPhaseAnnouncement] = useState(null)
   const [botDeckUploaded, setBotDeckUploaded] = useState(false)
-
+  const [currentRoundNumber, setCurrentRoundNumber] = useState(0)
   const [currentAbilityDecision, setCurrentAbilityDecision] = useState({
     attack: null,
     defense: null,
   })
   const containerRef = useRef(null)
   const intervalRef = useRef(null)
+  const finishTimeoutRef = useRef(null)
+
   const botDeckUploadedRef = useRef(false)
 
   const phaseBadges = {
@@ -71,6 +68,11 @@ const Battle = ({ user }) => {
     [PHASES.BATTLE]: '/new/battle/assets/phase/battle.png',
     [PHASES.CANCELLED]: '/new/battle/assets/phase/cancelled.png',
   }
+
+  const [runTutorial, setRunTutorial] = useState(false)
+  const [currentStepIndex, setCurrentStepIndex] = useState(0)
+  const [stepIndex, setStepIndex] = useState(0)
+  const [steps, setSteps] = useState([])
 
   //const backend = 'https://cwbackendl.onrender.com'
   const backend = 'http://localhost:3000'
@@ -86,6 +88,12 @@ const Battle = ({ user }) => {
       if (!data) return console.log('No match data found in Realtime DB')
 
       setMatch(data)
+
+      // Round Number
+
+      const currentRoundNumber = data.round || 0
+      setCurrentRoundNumber(currentRoundNumber) // store in state if needed
+      console.log('Current Round:', currentRoundNumber)
 
       // ✅ Determine if current user is player1 or player2
       const isUserPlayer1 = data.player1?.userId === userId
@@ -252,6 +260,14 @@ const Battle = ({ user }) => {
         data.currentPhase === 'finished' ||
         data.currentPhase === 'cancelled'
       ) {
+        // if (
+        //   data.timersType === 'tutorial' &&
+        //   !localStorage.getItem('tutorialCompleted')
+        // ) {
+        //   localStorage.setItem('tutorialCompleted', 'true')
+        //   console.log('Tutorial completed, flag set')
+        // }
+
         if (data.winnerId === userId) {
           setFinalResult('user')
           setShowFinishedModal(true)
@@ -281,7 +297,10 @@ const Battle = ({ user }) => {
     return () => {
       off(matchRef)
       if (window._phaseTimer) clearInterval(window._phaseTimer)
-      if (finishTimeout) clearTimeout(finishTimeout)
+      if (finishTimeoutRef.current) {
+        clearTimeout(finishTimeoutRef.current)
+        finishTimeoutRef.current = null
+      }
     }
   }, [matchID, userId])
 
@@ -388,7 +407,7 @@ const Battle = ({ user }) => {
     if (!matchID || !user?.userId) return
 
     try {
-      const res = await fetch(`${backend}//api/battle/${matchID}/endTurn`, {
+      const res = await fetch(`${backend}/api/battle/${matchID}/endTurn`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ playerId: user.userId }),
@@ -398,7 +417,6 @@ const Battle = ({ user }) => {
 
       if (data.success) {
         console.log('Turn ended successfully!')
-        // Optionally, update local state to reflect player has ended turn
         // e.g., setPlayerEnded(true);
       } else {
         console.warn('Failed to end turn:', data.error)
@@ -517,22 +535,244 @@ const Battle = ({ user }) => {
     }
   }
 
+  const cooldownSteps = [
+    {
+      id: 1,
+      target: '.phase-badge',
+      content: (
+        <div>
+          <strong>Phase Badge:</strong> <br />
+          This mystical emblem shows the <em>current phase</em> of the battle.{' '}
+          <br />
+          Now we are in the <strong>Cooldown Phase</strong>, where warriors
+          regain their strength.
+        </div>
+      ),
+      disableBeacon: true,
+      duration: 4000,
+      showCloseButton: false,
+    },
+    {
+      id: 2,
+      target: '.timer-text',
+      content: (
+        <div>
+          <strong>Cooldown Timer:</strong> <br />
+          Watch the sands of time carefully; the next round begins when it runs
+          out!
+        </div>
+      ),
+      disableBeacon: true,
+      duration: 3000,
+      showCloseButton: false,
+    },
+    {
+      id: 3,
+      target: '.role-badge.left',
+      content: (
+        <div>
+          <strong>
+            Your Role Badge:{' '}
+            {player1Role === 'attack' ? 'Attack ⚔️' : 'Defence 🛡️'}
+          </strong>{' '}
+          <br />
+          This shows your mystical role for this round: <em>{player1Role}</em>
+        </div>
+      ),
+      disableBeacon: true,
+      duration: 3000,
+      showCloseButton: false,
+    },
+    {
+      id: 4,
+      target: '.role-badge.right',
+      content: (
+        <div>
+          <strong>
+            Opponent’s Role:{' '}
+            {player2Role === 'attack' ? 'Attack ⚔️' : 'Defence 🛡️'}
+          </strong>{' '}
+          <br />
+          Observe your foe’s role carefully; anticipate their next move!
+        </div>
+      ),
+      disableBeacon: true,
+      duration: 3000,
+      showCloseButton: false,
+    },
+    {
+      id: 5,
+      target: '.synergy-bar',
+      content: (
+        <div>
+          <strong>Synergy Bar:</strong> <br />
+          This magical gauge shows your remaining HP and energy for abilities
+          this round.
+        </div>
+      ),
+      disableBeacon: true,
+      duration: 3000,
+      showCloseButton: false,
+    },
+  ]
+
+  const selection1Steps = [
+    {
+      id: 1,
+      target: '.phase-badge',
+      content: (
+        <div>
+          <strong>Phase Badge:</strong> <br />
+          You have entered the <strong>Selection Phase</strong>! <br />
+          Here, you choose your card for the upcoming battle. Choose wisely,
+          brave warrior!
+        </div>
+      ),
+      disableBeacon: true,
+      duration: 3000,
+      showNextButton: false,
+      showCloseButton: false,
+    },
+    {
+      id: 2,
+      target: '.deck-section',
+      content: (
+        <div>
+          <strong>Deck Section:</strong> <br />
+          Behold your deck of mystical warriors! They are your allies. Each
+          warrior carries unique powers.
+        </div>
+      ),
+      disableBeacon: true,
+      duration: 5000,
+      showCloseButton: false,
+    },
+    {
+      id: 3,
+      target: '.deck-card', // highlights the first card
+      content: (
+        <div>
+          <strong>Select Your First Warriors ⚔️</strong> <br />
+          Click this warrior to choose your champion for the round. Only one can
+          be chosen!
+        </div>
+      ),
+      disableBeacon: true,
+      spotlightClicks: true, // user must click to proceed
+      showNextButton: false, // hides next button
+      duration: 5000,
+      showCloseButton: false,
+    },
+    {
+      id: 4,
+      target: '.ability-popup',
+      content: (
+        <div>
+          <strong>
+            Ability for {player1Role === 'attack' ? 'Attack ⚔️' : 'Defence 🛡️'}
+          </strong>{' '}
+          <br />
+          This is the magical popup that appears when you choose a warrior.{' '}
+          <br />
+          Here, you select a special ability to empower your champion for the
+          round.
+        </div>
+      ),
+      disableBeacon: true,
+      spotlightClicks: true, // user must click to proceed
+      showNextButton: false, // hides next button
+      duration: 5000,
+      showCloseButton: false,
+    },
+    {
+      id: 5,
+      target: '.footer-btn.end-round-btn',
+      content: (
+        <div>
+          <strong>End Round Button:</strong> <br />
+          Once you have chosen your warrior and ability, click this button to
+          lock in your choices and prepare for battle!
+        </div>
+      ),
+      disableBeacon: true,
+      duration: 4000,
+      spotlightClicks: true, // user must click to proceed
+      showNextButton: false,
+      showCloseButton: false,
+    },
+  ]
+
+  useEffect(() => {
+    const tutorialCompleted = localStorage.getItem('tutorialCompleted')
+    if (tutorialCompleted) {
+      setRunTutorial(false)
+      setStepIndex(-1)
+      return
+    }
+
+    if (currentRoundNumber === 0) {
+      if (phase === 'cooldown') setSteps(cooldownSteps)
+      else if (phase === 'selection') setSteps(selection1Steps)
+
+      setRunTutorial(phase === 'cooldown' || phase === 'selection')
+      setStepIndex(0) // start from first step
+    } else {
+      setRunTutorial(false)
+      setStepIndex(-1)
+    }
+  }, [currentRoundNumber, phase])
+
+  useEffect(() => {
+    if (!runTutorial || stepIndex < 0 || stepIndex >= steps.length) return
+
+    const timer = setTimeout(() => {
+      const nextStep = stepIndex + 1
+
+      if (nextStep >= steps.length) {
+        // Tutorial finished
+        localStorage.setItem('tutorialCompleted', 'true')
+        console.log('Tutorial completed, flag set')
+
+        setRunTutorial(false)
+        setStepIndex(-1)
+      } else {
+        setStepIndex(nextStep)
+      }
+    }, steps[stepIndex].duration)
+
+    return () => clearTimeout(timer)
+  }, [stepIndex, runTutorial, steps])
+
+  useEffect(() => {
+    // Step 3 = first card selection
+    if (runTutorial && stepIndex === 2) {
+      const firstCard = playerDeck[0] // assuming playerDeck array
+      if (!cardSelected && firstCard) {
+        const autoSelectTimer = setTimeout(() => {
+          handleCardClick(firstCard) // auto-click
+          setStepIndex((prev) => prev + 1) // move tutorial forward
+        }, 5000) // 5s delay
+
+        return () => clearTimeout(autoSelectTimer)
+      }
+    }
+  }, [stepIndex, runTutorial, cardSelected])
+
   return (
     <div className="battle-container" ref={containerRef}>
       <div className="battle-header">
         {/* Left Player */}
         <div className="battle-header-left">
-          <img src={user.photo_url} alt="Player Avatar" className="avatar" />
+          <div className="avatar-container">
+            <img src={user.photo_url} alt="Player Avatar" className="avatar" />
+            {player1Role && (
+              <span className="role-badge left">
+                {player1Role === 'attack' ? '⚔️' : '🛡️'}
+              </span>
+            )}
+          </div>
           <div className="player-info">
-            <p className="player-name">
-              {player1Name}
-              {player1Role === 'attack' && (
-                <span className="role-icon">⚔️</span>
-              )}
-              {player1Role === 'defense' && (
-                <span className="role-icon">🛡️</span>
-              )}
-            </p>
+            <p className="player-name">{player1Name}</p>
             <div className="synergy-bar">
               <div className="synergy-fill" style={{ width: `${player1Hp}%` }}>
                 <span className="synergy-text">{player1Hp}%</span>
@@ -548,22 +788,21 @@ const Battle = ({ user }) => {
         {/* Right Player */}
         <div className="battle-header-right">
           <div className="player-info">
-            <p className="player-name">
-              {player2Role === 'attack' && (
-                <span className="role-icon">⚔️</span>
-              )}
-              {player2Role === 'defense' && (
-                <span className="role-icon">🛡️</span>
-              )}
-              {player2Name}
-            </p>
+            <p className="player-name">{player2Name}</p>
             <div className="synergy-bar">
               <div className="synergy-fill" style={{ width: `${player2Hp}%` }}>
                 <span className="synergy-text">{player2Hp}%</span>
               </div>
             </div>
           </div>
-          <img src="/assets/gameLogo.avif" className="avatar" />
+          <div className="avatar-container">
+            <img src="/assets/gameLogo.avif" className="avatar" />
+            {player2Role && (
+              <span className="role-badge right">
+                {player2Role === 'attack' ? '⚔️' : '🛡️'}
+              </span>
+            )}
+          </div>
         </div>
       </div>
 
@@ -634,6 +873,7 @@ const Battle = ({ user }) => {
           className="footer-btn"
           onClick={cancelMatch}
         />
+
         <CachedImage
           src={phaseBadges[phase]}
           alt={`Phase: ${phase}`}
@@ -642,7 +882,7 @@ const Battle = ({ user }) => {
         <CachedImage
           src="/new/battle/assets/endRoundBtn.png"
           alt="End Round Button"
-          className="footer-btn"
+          className="footer-btn end-round-btn"
           onClick={handleEndRound}
           style={{
             opacity: selectedCard && selectedAbility ? 1 : 0.5,
@@ -770,6 +1010,30 @@ const Battle = ({ user }) => {
           {phaseAnnouncement.toUpperCase()}
         </div>
       )}
+      <Joyride
+        steps={steps} // renamed array for clarity
+        run={runTutorial} // controlled by useEffect
+        stepIndex={stepIndex} // auto-advance index
+        continuous={false} // we control next via timer
+        showProgress={false} // hide progress bar
+        showSkipButton={false} // no skip button
+        showCloseButton={false} // no close button
+        disableOverlayClose={true} // prevent click-away
+        scrollToFirstStep={true} // scroll to highlighted element
+        styles={{
+          options: { zIndex: 2000 },
+          beacon: { display: 'none' }, // hide initial dot
+          buttonClose: { display: 'none' }, // hides "X" close button
+          buttonBack: { display: 'none' }, // hides "Back" button
+          tooltipFooter: { display: 'none' }, // hides bottom bar that contains buttons
+        }}
+        callback={({ status }) => {
+          if (status === 'finished' || status === 'skipped') {
+            setRunTutorial(false) // stop tutorial when finished
+            setStepIndex(-1)
+          }
+        }}
+      />
     </div>
   )
 }
