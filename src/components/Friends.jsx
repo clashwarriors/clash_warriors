@@ -1,17 +1,16 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react'
-import { ref, onValue } from 'firebase/database'
-import { realtimeDB } from '../firebase'
+import { firestoreDB } from '../firebase'
 import './style/Friends.css'
 import { triggerHapticFeedback } from './tournament/utils/haptic'
 import CachedImage from './Shared/CachedImage'
+import { collection, onSnapshot } from 'firebase/firestore'
 
 const Friends = React.memo(({ user }) => {
   const [invitedFriends, setInvitedFriends] = useState([])
 
   const referralLink = useMemo(() => {
-    return user?.userId
-      ? `https://telegram-bot-162954742311.us-central1.run.app/invite/${user.userId}`
-      : ''
+    const backendUrl = import.meta.env.VITE_API_BASE_URL
+    return user?.userId ? `${backendUrl}/invite/${user.userId}` : ''
   }, [user?.userId])
 
   const totalReferrals = invitedFriends.length
@@ -19,20 +18,25 @@ const Friends = React.memo(({ user }) => {
   useEffect(() => {
     if (!user?.userId) return
 
-    const friendsRef = ref(realtimeDB, `users/${user.userId}/friends`)
+    // Reference to the "friends" subcollection under the user document
+    const friendsColRef = collection(
+      firestoreDB,
+      `users/${user.userId}/friends`
+    )
 
-    const unsubscribe = onValue(friendsRef, (snapshot) => {
-      const friendsData = snapshot.val()
-      if (!friendsData) {
+    // Listen for real-time updates
+    const unsubscribe = onSnapshot(friendsColRef, (snapshot) => {
+      if (snapshot.empty) {
         setInvitedFriends([])
         return
       }
 
-      const friendNames = Object.values(friendsData).map((friend) =>
-        friend.first_name && friend.last_name
-          ? `${friend.first_name} ${friend.last_name}`
+      const friendNames = snapshot.docs.map((doc) => {
+        const data = doc.data()
+        return data.firstName && data.lastName
+          ? `${data.firstName} ${data.lastName}`
           : 'Unknown User'
-      )
+      })
 
       setInvitedFriends(friendNames)
     })

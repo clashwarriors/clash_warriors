@@ -1,35 +1,32 @@
-import React, { useEffect, useState, useCallback, useMemo } from 'react'
-import { firestoreDB } from '../../../firebase'
+import React, { useState, useCallback, useMemo } from 'react'
 import { triggerHapticFeedback } from '../../tournament/utils/haptic'
 import CachedImage from '../../Shared/CachedImage'
 import './style/dailymissions.style.css'
-import { doc, getDoc } from 'firebase/firestore'
 
 const DailyMission = ({ user }) => {
-  const [socialTasks, setSocialTasks] = useState([])
   const [lastAdAttemptTime, setLastAdAttemptTime] = useState(0)
 
-  const fetchSocialTasks = useCallback(async () => {
-    try {
-      const docRef = doc(firestoreDB, 'social', 'socialPages')
-      const docSnap = await getDoc(docRef)
-
-      if (docSnap.exists()) {
-        const data = docSnap.data()
-        const tasksArray = Object.values(data)
-
-        setSocialTasks(tasksArray)
-      } else {
-        console.warn('❌ No socialPages document found in Firestore.')
-      }
-    } catch (error) {
-      console.error('❌ Error fetching social tasks from Firestore:', error)
-    }
-  }, [])
-
-  useEffect(() => {
-    fetchSocialTasks()
-  }, [fetchSocialTasks])
+  // Hardcoded offline social tasks
+  const socialTasks = [
+    {
+      title: 'Follow Clash Warriors on X',
+      link: 'https://twitter.com/Clash_Warriors_',
+      logoUrl: '/assets/social/x.png',
+      coins: 500000,
+    },
+    {
+      title: 'Join our Telegram Channel',
+      link: 'https://t.me/clash_warriors_announcement',
+      logoUrl: '/assets/social/telegram.png',
+      coins: 500000,
+    },
+    {
+      title: 'Follow us on Instagram',
+      link: 'https://www.instagram.com/clash_warriors_official/',
+      logoUrl: '/assets/social/instagram.png',
+      coins: 500000,
+    },
+  ]
 
   const handleAdClick = useCallback(async () => {
     const now = Date.now()
@@ -46,19 +43,18 @@ const DailyMission = ({ user }) => {
 
     try {
       // Monetag Rewarded Interstitial Call
-      await show_9130916()
+      await show_9130916() // keep your ad call here
 
       // ✅ Reward logic after ad completes
       if (!user?.userId) return
 
-      const coinsRef = ref(firestoreDB, `users/${user.userId}/coins`)
-      const snapshot = await get(coinsRef)
-      const currentCoins = snapshot.exists() ? snapshot.val() : 0
-      const updatedCoins = currentCoins + 10000
-      await set(coinsRef, updatedCoins)
+      // Replace Firestore coins logic with local storage
+      const currentCoins = parseInt(localStorage.getItem('coins') || '0', 10)
+      const updatedCoins = currentCoins + 500000
+      localStorage.setItem('coins', updatedCoins)
 
       triggerHapticFeedback()
-      alert('🎉 You earned 10,000 coins!')
+      alert('🎉 You earned 5,00,000 coins!')
     } catch (error) {
       console.error('❌ Ad failed or user skipped:', error)
     }
@@ -83,26 +79,20 @@ const DailyMission = ({ user }) => {
                 src={task.logoUrl}
                 alt={task.title}
                 className="daily-mission-social-logo"
-                style={{
-                  paddingLeft: '10px',
-                }}
+                style={{ paddingLeft: '10px' }}
               />
             )}
             <div className="daily-mission-social-text-container">
               <span
                 className="daily-mission-social-title"
-                style={{
-                  margin: '0 auto',
-                }}
+                style={{ margin: '0 auto' }}
               >
                 {task.title}
               </span>
               <br />
               <span
                 className="daily-mission-social-coins"
-                style={{
-                  margin: '0 auto',
-                }}
+                style={{ margin: '0 auto' }}
               >
                 💰 {task.coins} Coins
               </span>
@@ -134,7 +124,6 @@ const DailyMission = ({ user }) => {
             className={`daily-mission-ad-image ${adCooldown ? 'cooldown' : ''}`}
           />
         </div>
-
       </div>
 
       <div className="daily-mission-social-section">

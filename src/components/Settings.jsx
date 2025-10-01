@@ -4,9 +4,8 @@ import {
   useTonConnectUI,
   useTonWallet,
 } from '@tonconnect/ui-react'
-import { realtimeDB, firestoreDB } from '../firebase'
-import { ref, onValue, set } from 'firebase/database'
-import { collection, getDocs, addDoc } from 'firebase/firestore'
+import { firestoreDB } from '../firebase'
+import { collection, getDocs, addDoc, doc, getDoc, updateDoc } from 'firebase/firestore'
 import './style/settings.style.css'
 
 const Settings = ({ user }) => {
@@ -25,24 +24,38 @@ const Settings = ({ user }) => {
   const [showAllFAQs, setShowAllFAQs] = useState(false)
 
   useEffect(() => {
-    if (wallet && user?.userId && !walletSaved) {
-      const walletAddress = wallet.account.address
-      const userWalletRef = ref(realtimeDB, `users/${user.userId}/walletId`)
-      onValue(
-        userWalletRef,
-        (snapshot) => {
-          const data = snapshot.val() || {}
-          const existing = Object.values(data)
-          if (!existing.includes(walletAddress)) {
-            const newIndex = Object.keys(data).length + 1
-            const updates = { ...data, [newIndex]: walletAddress }
-            set(userWalletRef, updates)
-          }
-          setWalletSaved(true)
-        },
-        { onlyOnce: true }
-      )
+    if (!wallet || !user?.userId || walletSaved) return
+
+    const walletAddress = wallet.account.address
+    const userDocRef = doc(firestoreDB, 'users', user.userId)
+
+    const saveWallet = async () => {
+      try {
+        const userSnap = await getDoc(userDocRef)
+
+        let walletData = {}
+        if (userSnap.exists()) {
+          walletData = userSnap.data().walletId || {}
+        } else {
+          // If user doc doesn't exist, create it
+          await setDoc(userDocRef, { walletId: {} }, { merge: true })
+        }
+
+        // Check if wallet already exists
+        const existing = Object.values(walletData)
+        if (!existing.includes(walletAddress)) {
+          const newIndex = Object.keys(walletData).length + 1
+          const updates = { ...walletData, [newIndex]: walletAddress }
+          await updateDoc(userDocRef, { walletId: updates })
+        }
+
+        setWalletSaved(true)
+      } catch (error) {
+        console.error('Failed to save wallet:', error)
+      }
     }
+
+    saveWallet()
   }, [wallet, user?.userId, walletSaved])
 
   const handleToggleSound = useCallback(() => {
@@ -117,6 +130,60 @@ const Settings = ({ user }) => {
     [showAllFAQs, allFaqs, importantFaqs]
   )
 
+  const faqData = [
+    {
+      question: 'How do I start a battle?',
+      answer:
+        'Tap "Start Battle". If a live user is available, you’ll face them; otherwise, you’ll battle an AI fallback.',
+    },
+    {
+      question: 'What are abilities in Clash Warriors?',
+      answer:
+        'There are two types: Defense and Attack abilities. You can see details on the Tournament page.',
+    },
+    {
+      question: 'What is $WARS token used for?',
+      answer:
+        '$WARS is the in-game currency for battles, wagers, marketplace trades, and premium items — coming soon.',
+    },
+    {
+      question: 'How do I connect my wallet?',
+      answer:
+        'Tap the “Connect Wallet” button in Settings. We support Tonkeeper and Tonhub on TON.',
+    },
+    {
+      question: 'Can I play without connecting my wallet?',
+      answer:
+        'Yes! You can start battles without a wallet. Wallet connection is required only for $WARS usage in the future.',
+    },
+    {
+      question: 'What happens if I lose a battle?',
+      answer:
+        'If you lose, you can retry immediately. You won’t lose anything currently as battles are free.',
+    },
+    {
+      question: 'How do I check my abilities?',
+      answer:
+        'Go to the Tournament page to view your Attack and Defense abilities and their effects.',
+    },
+    {
+      question: 'Can I play with friends?',
+      answer:
+        'Currently battles are matched automatically. PvP friend battles will be added in future updates.',
+    },
+    {
+      question: 'Is sound enabled by default?',
+      answer: 'Yes! You can toggle sound effects in Settings at any time.',
+    },
+    {
+      question: 'How do I report issues or ask questions?',
+      answer:
+        'Tap the "Contact Support" button in Settings and submit your question. Our team will respond soon.',
+    },
+  ]
+
+  const visibleFAQs = showAllFAQs ? faqData : faqData.slice(0, 2)
+
   return (
     <div
       className="settings-container"
@@ -130,7 +197,10 @@ const Settings = ({ user }) => {
         <TonConnectButton />
       </div>
 
-      <div className="settings-sound-toggle" style={{ marginTop: '1rem' }}>
+      <div
+        className="settings-sound-toggle"
+        style={{ marginTop: '1rem', marginBottom: '2rem' }}
+      >
         <label
           className="settings-sound-label"
           style={{
@@ -152,54 +222,45 @@ const Settings = ({ user }) => {
         </label>
       </div>
 
-      <button
-        
-        style={{
-          marginTop: '20px',
-          padding: '10px',
-          backgroundColor: 'red',
-          color: 'white',
-        }}
-      >
-        🗑️ Delete All Animations
-      </button>
-
       <div
-        className="settings-faq-support-section"
-        style={{ marginTop: '2rem' }}
+        className="settings-faq-list"
+        style={{ textAlign: 'left', maxWidth: '600px', margin: '0 auto' }}
       >
-        <h3 className="settings-faq-title">FAQ & Support</h3>
+        {visibleFAQs.map((faq, idx) => (
+          <details
+            key={idx}
+            className="settings-faq-item"
+            style={{ marginBottom: '1rem' }}
+          >
+            <summary
+              className="settings-faq-question"
+              style={{ cursor: 'pointer', fontWeight: 'bold' }}
+            >
+              Q: {faq.question}
+            </summary>
+            <p className="settings-faq-answer" style={{ marginLeft: '1rem' }}>
+              A: {faq.answer}
+            </p>
+          </details>
+        ))}
 
-        <div
-          className="settings-faq-list"
-          style={{ textAlign: 'left', maxWidth: '600px', margin: '0 auto' }}
-        >
-          {faqLoading ? (
-            <p className="settings-faq-loading">Loading FAQs...</p>
-          ) : (
-            <>
-              {faqList}
-
-              {allFaqs.length > importantFaqs.length && (
-                <button
-                  className="settings-show-toggle"
-                  onClick={() => setShowAllFAQs(!showAllFAQs)}
-                  style={{
-                    marginTop: '1.2rem',
-                    background: 'none',
-                    border: 'none',
-                    color: '#fff',
-                    cursor: 'pointer',
-                    textDecoration: 'underline',
-                    fontWeight: 'bold',
-                  }}
-                >
-                  {showAllFAQs ? 'Show Less' : 'Show All'}
-                </button>
-              )}
-            </>
-          )}
-        </div>
+        {faqData.length > 2 && (
+          <button
+            className="settings-show-toggle"
+            onClick={() => setShowAllFAQs(!showAllFAQs)}
+            style={{
+              marginTop: '1.2rem',
+              background: 'none',
+              border: 'none',
+              color: '#fff',
+              cursor: 'pointer',
+              textDecoration: 'underline',
+              fontWeight: 'bold',
+            }}
+          >
+            {showAllFAQs ? 'Show Less' : 'Show More'}
+          </button>
+        )}
       </div>
 
       {showSupportModal && (

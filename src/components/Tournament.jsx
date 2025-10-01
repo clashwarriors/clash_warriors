@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { realtimeDB } from '../firebase'
-import { ref, onValue, get } from 'firebase/database'
+import { doc, getDoc } from 'firebase/firestore'
+import { firestoreDB } from '../firebase'
 import DefaultDeckModal from './tournament/DefaultDeckModal'
 import './tournament/style/tournament.style.css'
 import { triggerHapticFeedback } from './tournament/utils/haptic'
@@ -42,14 +42,15 @@ const Tournament = ({ user }) => {
       setLoading(true)
       setupAnimationsDB()
       fetchAbilityFrames()
-      const userRef = ref(realtimeDB, `users/${user.userId}`)
 
-      get(userRef)
-        .then((snapshot) => {
-          if (snapshot.exists()) {
-            setUserData(snapshot.val())
+      const userDocRef = doc(firestoreDB, 'users', user.userId) // Firestore doc reference
+
+      getDoc(userDocRef)
+        .then((docSnap) => {
+          if (docSnap.exists()) {
+            setUserData(docSnap.data())
           } else {
-            console.warn('⚠️ User data not found in Firebase')
+            console.warn('⚠️ User data not found in Firestore')
             setUserData(null)
           }
         })
@@ -61,59 +62,6 @@ const Tournament = ({ user }) => {
           setLoading(false)
         })
     }
-  }, [user])
-
-  useEffect(() => {
-    if (!user?.userId) return
-
-    const gameRef = ref(realtimeDB, 'currentGames')
-
-    const unsubscribe = onValue(gameRef, (snapshot) => {
-      if (!snapshot.exists()) return
-
-      const games = snapshot.val()
-      for (let matchID in games) {
-        const matchData = games[matchID]
-        if (!matchData) continue
-
-        const { player1, player2, matchStatus } = matchData
-
-        if (
-          (matchStatus === 'cooldown' || matchStatus === 'in-progress') &&
-          (player1?.id === user.userId || player2?.id === user.userId) &&
-          !hasNavigated
-        ) {
-          console.log(`✅ Match found! Redirecting to: /battle/${matchID}`)
-          setHasNavigated(true)
-          navigate(`/battle/${matchID}`, { state: { matchID } })
-          return
-        }
-      }
-    })
-
-    return () => unsubscribe()
-  }, [user, navigate, hasNavigated])
-
-  useEffect(() => {
-    if (!user?.userId) return
-
-    const dailyBattleRef = ref(
-      realtimeDB,
-      `users/${user.userId}/dailyBattleDate`
-    )
-
-    const unsubscribe = onValue(dailyBattleRef, (snapshot) => {
-      const lastBattleDate = snapshot.val()
-      const todayDate = new Date().toISOString().split('T')[0] // Format YYYY-MM-DD
-
-      if (!lastBattleDate || lastBattleDate !== todayDate) {
-        setCanStartDailyBattle(true) // Show button if no battle today
-      } else {
-        setCanStartDailyBattle(false) // Hide button if battle already done
-      }
-    })
-
-    return () => unsubscribe() // Cleanup listener on unmount
   }, [user])
 
   const handleOpenModal = () => {
@@ -149,6 +97,7 @@ const Tournament = ({ user }) => {
   }
 
   const handlePlayNow = async () => {
+    triggerHapticFeedback()
     try {
       const userData = await getUserData()
       if (!userData) return setAlertMessage('User data not found!')
@@ -175,6 +124,7 @@ const Tournament = ({ user }) => {
   }
 
   const handleCancel = async () => {
+    triggerHapticFeedback()
     try {
       const userData = await getUserData()
       if (!userData) return setAlertMessage('User data not found!')
@@ -245,11 +195,11 @@ const Tournament = ({ user }) => {
         {showDeckErrorModal && (
           <div
             className="deck-error-modal-overlay"
-            onClick={() => setShowDeckErrorModal(false)} // ⬅️ close when background clicked
+            onClick={() => setShowDeckErrorModal(false)}
           >
             <div
               className="deck-error-modal-content"
-              onClick={(e) => e.stopPropagation()} // ⛔ prevent closing when modal content is clicked
+              onClick={(e) => e.stopPropagation()}
             >
               <CachedImage
                 onClick={noCardsError}

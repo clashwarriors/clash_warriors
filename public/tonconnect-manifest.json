@@ -1,7 +1,7 @@
 {
-  "url": "https://clashwarriors.tech/",
+  "url": "https://play.clashwarriors.tech/",
   "name": "Clash Warriors",
-  "iconUrl": "https://clashwarriors.tech/logo.png",
-  "dappUrl": "https://clashwarriors.tech/",
-  "manifestUrl": "https://clashwarriors.tech/tonconnect-manifest.json"
+  "iconUrl": "https://adorable-fudge-c73118.netlify.app/logo.png",
+  "dappUrl": "https://play.clashwarriors.tech/",
+  "manifestUrl": "https://play.clashwarriors.tech/tonconnect-manifest.json"
 }

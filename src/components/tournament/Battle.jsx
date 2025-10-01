@@ -14,6 +14,7 @@ import { PHASES, PHASE_TIMERS, ABILITIES } from './utils/battleModifiers'
 import { fetchAbilityFrames } from '../../utils/AnimationUtility'
 import { abilityConfig } from './weights/abilites' // your ability JSON
 import Joyride from 'react-joyride'
+import { triggerHapticFeedback } from '../tournament/utils/haptic'
 
 const Battle = ({ user }) => {
   const { matchID } = useParams()
@@ -341,6 +342,7 @@ const Battle = ({ user }) => {
   }, [matchID, match])
 
   const handleCardClick = async (card) => {
+    triggerHapticFeedback()
     if (phase !== PHASES.SELECTION || cardSelected) return // block extra clicks
 
     try {
@@ -367,6 +369,7 @@ const Battle = ({ user }) => {
   }
 
   const handleAbilityClick = async (abilityKey) => {
+    triggerHapticFeedback()
     if (phase !== PHASES.SELECTION) return
     if (!match || !userId) return console.error('No match or userId available')
 
@@ -402,6 +405,7 @@ const Battle = ({ user }) => {
   }
 
   const handleEndRound = async () => {
+    triggerHapticFeedback()
     console.log('End Round clicked')
 
     if (!matchID || !user?.userId) return
@@ -427,6 +431,7 @@ const Battle = ({ user }) => {
   }
 
   const cancelMatch = async () => {
+    triggerHapticFeedback()
     if (!matchID || !user.userId) return
 
     try {
