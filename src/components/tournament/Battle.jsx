@@ -122,25 +122,30 @@ const Battle = ({ user }) => {
       }
 
       // HP logic
-      // Current synergy values
       const rawP1Synergy = data.player1?.synergy || 0
       const rawP2Synergy = data.player2?.synergy || 0
 
-      // Max synergy reference from backend
+      // reference synergy (max or initial)
       const referenceSynergy =
         data.maxSynergy ||
         Math.max(
           data.player1?.initialSynergy || rawP1Synergy,
           data.player2?.initialSynergy || rawP2Synergy
-        )
+        ) ||
+        1 // prevent division by zero
 
-      // Calculate percentage relative to reference
-      const player1Percent = Math.round((rawP1Synergy / referenceSynergy) * 100)
-      const player2Percent = Math.round((rawP2Synergy / referenceSynergy) * 100)
+      // Compute percentages
+      const p1Percent = Math.round((rawP1Synergy / referenceSynergy) * 100)
+      const p2Percent = Math.round((rawP2Synergy / referenceSynergy) * 100)
 
-      // Set state
-      setPlayer1Hp(player1Percent)
-      setPlayer2Hp(player2Percent)
+      // ✅ Assign HP based on which side the logged-in user is
+      if (isUserPlayer1) {
+        setPlayer1Hp(p1Percent) // user = player1 in DB
+        setPlayer2Hp(p2Percent)
+      } else {
+        setPlayer1Hp(p2Percent) // user = player2 in DB → show their HP on left
+        setPlayer2Hp(p1Percent)
+      }
 
       // Current round (always store left-side player’s round)
       const currentRoundData = isUserPlayer1

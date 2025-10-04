@@ -22,49 +22,6 @@ export const initCardDB = async () => {
   })
 }
 
-// Fetch from Firestore & store in appropriate object store
-// export const fetchAndStoreAllCards = async (onCardLoaded) => {
-//   const db = await initCardDB()
-
-//   // Check if already cached
-//   const existing = await db.getAll(`cards_common`)
-//   if (existing.length > 0) {
-//     console.log("✅ Cards already cached, skipping Firestore fetch")
-//     return
-//   }
-
-//   // Otherwise fetch from Firestore...
-//   for (const rarity of RARITIES) {
-//     for (const character of CHARACTERS) {
-//       const cardsRef = collection(firestoreDB, rarity, character, 'cards')
-//       const snapshot = await getDocs(cardsRef)
-
-//       const tx = db.transaction(`cards_${rarity}`, 'readwrite')
-//       const store = tx.objectStore(`cards_${rarity}`)
-
-//       snapshot.forEach((doc) => {
-//         const card = {
-//           ...doc.data(),
-//           rarity,
-//           character,
-//           cardId: doc.id,
-//         }
-//         store.put(card)
-//         if (typeof onCardLoaded === 'function') {
-//           onCardLoaded(card)
-//         }
-//       })
-
-//       await tx.done
-//     }
-//   }
-
-//   console.log('✅ All cards fetched and stored by rarity')
-// }
-
-
-// Get a card by cardId from a specific rarity store
-
 export const getCardByIdFromRarity = async (rarity, cardId) => {
   const db = await initCardDB()
   return db.get(`cards_${rarity}`, cardId)
@@ -76,16 +33,18 @@ export const getAllCardsByRarity = async (rarity) => {
   return db.getAll(`cards_${rarity}`)
 }
 
-
 // Fetch from Firestore & store in appropriate object store
-export const fetchAndStoreAllCards = async (onCardLoaded, forceRefresh = false) => {
+export const fetchAndStoreAllCards = async (
+  onCardLoaded,
+  forceRefresh = false
+) => {
   const db = await initCardDB()
 
   if (!forceRefresh) {
     // Only skip if not forcing
     const existing = await db.getAll(`cards_common`)
     if (existing.length > 0) {
-      console.log("✅ Cards already cached, skipping Firestore fetch")
+      console.log('✅ Cards already cached, skipping Firestore fetch')
       return
     }
   }
@@ -149,4 +108,3 @@ export const ensureCardsFetchedV1 = async (onCardLoaded) => {
   localStorage.setItem('cardsFetchedV2', 'true')
   console.log('✅ Cards IndexedDB fully refreshed and v2 flag set.')
 }
-

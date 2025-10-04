@@ -36,21 +36,36 @@ const Modal = React.memo(
 
     // Fetch card details from Firestore
     useEffect(() => {
-      if (!isOpen || !cardId || !category || !collection) return
+      if (!isOpen || !cardId) return
 
-      const fetchCardDetails = async () => {
-        try {
-          const docRef = doc(firestoreDB, category, collection, 'cards', cardId)
-          const snapshot = await getDoc(docRef)
-          if (snapshot.exists()) {
-            setCardDetails(snapshot.data())
+      const fetchCard = async () => {
+        const localCards = await getCards() // IndexedDB
+        const localCard = localCards.find((c) => c.cardId === cardId)
+
+        if (localCard) {
+          setCardDetails(localCard)
+          setIsCardPurchased(true)
+        } else {
+          // Fallback: fetch from Firestore only if not in IndexedDB
+          try {
+            const docRef = doc(
+              firestoreDB,
+              category,
+              collection,
+              'cards',
+              cardId
+            )
+            const snapshot = await getDoc(docRef)
+            if (snapshot.exists()) {
+              setCardDetails(snapshot.data())
+            }
+          } catch (err) {
+            console.error('❌ Error fetching card from Firestore:', err)
           }
-        } catch (error) {
-          console.error('❌ Error fetching card details from Firestore:', error)
         }
       }
 
-      fetchCardDetails()
+      fetchCard()
     }, [isOpen, cardId, category, collection])
 
     // Click outside modal to close
@@ -94,6 +109,17 @@ const Modal = React.memo(
 
       checkPurchase()
     }, [isOpen, user?.userId, cardId])
+
+    useEffect(() => {
+      if (!isOpen || !cardId) return
+
+      const checkPurchase = async () => {
+        const localCards = await getCards()
+        setIsCardPurchased(localCards.some((c) => c.cardId === cardId))
+      }
+
+      checkPurchase()
+    }, [isOpen, cardId])
 
     const purchaseCard = useCallback(async () => {
       if (!user?.userId || !cardDetails) return
@@ -150,7 +176,9 @@ const Modal = React.memo(
           <div className="new-modal-body">
             <div className={`new-modal-card-frame modal-rarity-${category}`}>
               <img
-                src={cardDetails?.image || '/fallback.png'}
+                src={
+                  cardDetails?.image || cardDetails?.photo || '/fallback.png'
+                }
                 alt={cardDetails?.name || 'Card Image'}
                 className="new-modal-card-image"
               />

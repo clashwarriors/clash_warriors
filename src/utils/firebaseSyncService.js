@@ -65,14 +65,27 @@ export const fetchUserFromFirestore = async (userId) => {
 // Upload user data to Firestore
 export const uploadUserToFirestore = async (userData) => {
   const userDocRef = doc(firestoreDB, 'users', userData.userId)
+
   try {
-    await setDoc(userDocRef, userData, { merge: true })
+    // Add lastUpdate timestamp
+    const dataToUpload = {
+      ...userData,
+      lastUpdate: Date.now(), // always add current timestamp
+    }
+
+    // Remove any undefined fields (optional safety)
+    const cleanData = Object.fromEntries(
+      Object.entries(dataToUpload).filter(([_, v]) => v !== undefined)
+    )
+
+    await setDoc(userDocRef, cleanData, { merge: true })
     console.log('User data uploaded successfully!')
   } catch (error) {
     console.error('Error uploading user data to Firestore:', error)
     throw error
   }
 }
+
 // Sync data from IndexedDB to Firestore
 export const manualSyncToFirestore = async () => {
   try {

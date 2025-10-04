@@ -50,25 +50,27 @@ export const preloadImagesToIDB = async (paths = []) => {
   const cacheBatch = async (arr) => {
     for (let i = 0; i < arr.length; i += concurrencyLimit) {
       const batch = arr.slice(i, i + concurrencyLimit)
-      await Promise.all(batch.map(async (src) => {
-        const key = src.startsWith('/') ? src.slice(1) : src
-        const cached = await db.get(STORE_NAME, key)
-        if (!cached) {
-          try {
-            const response = await fetch(src)
-            const blob = await response.blob()
-            const base64 = await blobToBase64(blob)
-            await db.put(STORE_NAME, base64, key)
-            memoryCache.set(key, base64)
-            console.log(`✅ Cached: ${key}`)
-          } catch (err) {
-            console.error(`❌ Failed to cache ${src}`, err)
+      await Promise.all(
+        batch.map(async (src) => {
+          const key = src.startsWith('/') ? src.slice(1) : src
+          const cached = await db.get(STORE_NAME, key)
+          if (!cached) {
+            try {
+              const response = await fetch(src)
+              const blob = await response.blob()
+              const base64 = await blobToBase64(blob)
+              await db.put(STORE_NAME, base64, key)
+              memoryCache.set(key, base64)
+              console.log(`✅ Cached: ${key}`)
+            } catch (err) {
+              console.error(`❌ Failed to cache ${src}`, err)
+            }
+          } else {
+            memoryCache.set(key, cached)
+            //console.log(`📦 Already cached: ${key}`)
           }
-        } else {
-          memoryCache.set(key, cached)
-          //console.log(`📦 Already cached: ${key}`)
-        }
-      }))
+        })
+      )
     }
   }
 
