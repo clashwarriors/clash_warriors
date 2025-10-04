@@ -302,6 +302,15 @@ const MainContent = React.memo(({ user, status }) => {
           element={<pages.Tournament user={user} status={status} />}
         />
         <Route
+          path="/tournament"
+          element={<pages.Tournament user={user} status={status} />}
+        />
+        <Route
+          path="/tournament/:code"
+          element={<pages.Tournament user={user} status={status} />}
+        />
+
+        <Route
           path="/daily-rewards"
           element={<pages.DailyRewards user={user} status={status} />}
         />

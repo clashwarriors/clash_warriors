@@ -28,6 +28,8 @@ const Battle = ({ user }) => {
   const [showFinishedModal, setShowFinishedModal] = useState(false)
   const [player1Name, setPlayer1Name] = useState('')
   const [player2Name, setPlayer2Name] = useState('maybe')
+  const [player1DP, setPlayer1DP] = useState(cardHolder)
+  const [player2DP, setPlayer2DP] = useState(cardHolder)
   const [showAbilityPopup, setShowAbilityPopup] = useState(false)
   const [selectedAbility, setSelectedAbility] = useState(null)
   const [finalResult, setFinalResult] = useState(null)
@@ -105,6 +107,8 @@ const Battle = ({ user }) => {
         setPlayer2Name(data.player2?.userName || 'Player2')
         setPlayer1Role(data.player1?.currentRole || 'attack')
         setPlayer2Role(data.player2?.currentRole || 'defense')
+        setPlayer1DP(data.player1?.photoDP || cardHolder)
+        setPlayer2DP(data.player2?.photoDP || cardHolder)
         setIsPlayer1(true)
       } else {
         // Self is player2 → swap sides
@@ -112,6 +116,8 @@ const Battle = ({ user }) => {
         setPlayer2Name(data.player1?.userName || 'Player2')
         setPlayer1Role(data.player2?.currentRole || 'attack')
         setPlayer2Role(data.player1?.currentRole || 'defense')
+        setPlayer1DP(data.player2?.photoDP || cardHolder)
+        setPlayer2DP(data.player1?.photoDP || cardHolder)
         setIsPlayer1(false)
       }
 
@@ -769,7 +775,7 @@ const Battle = ({ user }) => {
         {/* Left Player */}
         <div className="battle-header-left">
           <div className="avatar-container">
-            <img src={user.photo_url} alt="Player Avatar" className="avatar" />
+            <img src={player1DP} alt="Player Avatar" className="avatar" />
             {player1Role && (
               <span className="role-badge left">
                 {player1Role === 'attack' ? '⚔️' : '🛡️'}
@@ -801,7 +807,7 @@ const Battle = ({ user }) => {
             </div>
           </div>
           <div className="avatar-container">
-            <img src="/assets/gameLogo.avif" className="avatar" />
+            <img src={player2DP} className="avatar" />
             {player2Role && (
               <span className="role-badge right">
                 {player2Role === 'attack' ? '⚔️' : '🛡️'}

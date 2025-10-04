@@ -194,3 +194,292 @@
   border: 3px dashed #ffd700;
   padding: 8px;
 }
+
+/* Tournament Battle Modes */
+
+/* Overlay */
+.battle-mode-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.7); /* semi-transparent overlay */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 9999;
+}
+
+/* Modal Container */
+.battle-mode-container {
+  position: relative;
+  background: transparent; /* transparent modal */
+  padding: 40px 20px;
+  border-radius: 16px;
+  text-align: center;
+  width: 350px;
+  max-width: 80%;
+  min-height: 300px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center; /* vertical center */
+  align-items: center; /* horizontal center */
+}
+
+/* Buttons */
+.battle-mode-button {
+  position: relative;
+  width: 100%;
+  height: 70px;
+  margin: 12px 0;
+  border: none;
+  cursor: pointer;
+  background-size: cover;
+  background-position: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  font-weight: bold;
+  color: #ffae00;
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
+  font-family: 'MedievalSharpBold', sans-serif;
+  border-radius: 12px;
+  background-color: transparent;
+}
+
+/* Hover effect */
+.battle-mode-button:hover {
+  transform: scale(1.05);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.6);
+}
+
+/* Specific buttons with custom images */
+.battle-mode-multiplayer {
+  background-image: url('/new/tournament/tournamentBtnTemp.png');
+}
+
+.battle-mode-challenge {
+  background-image: url('/new/tournament/tournamentBtnTemp.png');
+}
+
+/* Enter code button */
+.battle-mode-enter-code {
+  width: 100%;
+  height: 50px;
+  margin-top: 15px;
+  border: none;
+  border-radius: 12px;
+  background-color: #ff9900;
+  color: #fff;
+  font-size: 16px;
+  font-weight: bold;
+  cursor: pointer;
+  transition:
+    background 0.2s ease,
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.battle-mode-enter-code:hover {
+  background-color: #ffb733;
+  transform: scale(1.03);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+.battle-code-wrapper {
+  position: relative;
+  width: 100%; /* Make same width as buttons */
+  max-width: 280px; /* Optional: same max width as buttons */
+  margin: 15px 0;
+  display: flex;
+  justify-content: center; /* horizontal center */
+}
+
+.battle-code-input {
+  width: 100%;
+  padding: 10px 40px 10px 10px; /* space for ✔ */
+  font-size: 18px;
+  border-radius: 12px; /* match button radius */
+  border: 2px solid #ffae00;
+  text-align: center;
+  font-family: 'MedievalSharpBold', sans-serif;
+  text-transform: uppercase;
+  background-color: #222; /* dark mode */
+  color: #ffc64c;
+}
+
+.battle-code-submit {
+  position: absolute;
+  top: 50%;
+  right: 10px;
+  transform: translateY(-50%);
+  font-size: 22px;
+  cursor: default;
+  color: #555; /* inactive */
+  font-weight: bold;
+  transition: color 0.2s ease;
+  padding: 10px; /* larger touch area */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%; /* optional for visual circle effect */
+}
+
+.battle-code-submit.active {
+  cursor: pointer;
+  color: #ffc64c; /* active color */
+}
+
+/* Overlay background */
+.friendly-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(10, 10, 15, 0.85);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 9999;
+  animation: fadeIn 0.2s ease-in-out;
+}
+
+/* Modal container */
+.friendly-modal-container {
+  background: linear-gradient(145deg, #1a1a1a, #0c0c0c);
+  border: 2px solid rgba(255, 255, 255, 0.15);
+  border-radius: 16px;
+  padding: 25px 30px;
+  width: 90%;
+  max-width: 400px;
+  text-align: center;
+  color: #fff;
+  box-shadow: 0 0 20px rgba(255, 180, 50, 0.2);
+  position: relative;
+  animation: popIn 0.25s ease-out;
+}
+
+/* Title */
+.friendly-modal-container h2 {
+  margin-bottom: 15px;
+  font-size: 1.4rem;
+  color: #ffd666;
+  text-shadow: 0 0 10px rgba(255, 214, 102, 0.5);
+}
+
+/* Input wrappers */
+.friendly-code-wrapper,
+.friendly-link-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 10px;
+  padding: 6px 10px;
+  margin: 10px 0;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Code & link inputs */
+.friendly-code-input,
+.friendly-link-input {
+  flex: 1;
+  background: transparent;
+  color: #fff;
+  font-size: 1rem;
+  border: none;
+  outline: none;
+  text-align: center;
+  font-weight: 600;
+  letter-spacing: 1px;
+  font-family: 'MedievalSharpBold', sans-serif;
+}
+
+/* Copy buttons */
+.friendly-code-copy,
+.friendly-link-copy {
+  background: linear-gradient(90deg, #ffb200, #ff7b00);
+  border: none;
+  border-radius: 8px;
+  color: #000;
+  font-weight: bold;
+  padding: 6px 10px;
+  cursor: pointer;
+  transition: 0.2s;
+  font-family: 'MedievalSharpBold', sans-serif;
+}
+
+.friendly-code-copy:hover,
+.friendly-link-copy:hover {
+  background: linear-gradient(90deg, #ffd369, #ff9b00);
+}
+
+/* Username input */
+.friendly-username-input {
+  width: 100%;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  color: #fff;
+  font-size: 1rem;
+  padding: 8px 10px;
+  margin-bottom: 15px;
+  font-family: 'MedievalSharpBold', sans-serif;
+
+  outline: none;
+  transition: 0.2s;
+}
+
+.friendly-username-input:focus {
+  border-color: #ffb200;
+  box-shadow: 0 0 5px #ffb200;
+  font-family: 'MedievalSharpBold', sans-serif;
+}
+
+/* Buttons */
+.friendly-send-btn {
+  width: 100%;
+  margin-top: 10px;
+  background: linear-gradient(90deg, #ffb200, #ff7b00);
+  border: none;
+  border-radius: 10px;
+  color: #000;
+  font-weight: bold;
+  padding: 10px;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  font-size: 1rem;
+  font-family: 'MedievalSharpBold', sans-serif;
+}
+
+.friendly-send-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 0 12px rgba(255, 180, 50, 0.4);
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes popIn {
+  0% {
+    transform: scale(0.9);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}

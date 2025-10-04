@@ -33,8 +33,8 @@ const Friends = React.memo(({ user }) => {
 
       const friendNames = snapshot.docs.map((doc) => {
         const data = doc.data()
-        return data.firstName && data.lastName
-          ? `${data.firstName} ${data.lastName}`
+        return data.first_name && data.last_name
+          ? `${data.first_name} ${data.last_name}`
           : 'Unknown User'
       })
 
