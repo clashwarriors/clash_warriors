@@ -3,6 +3,8 @@ import { triggerHapticFeedback } from './tournament/utils/haptic'
 import { useNavigate } from 'react-router-dom'
 import './style/dashboard.style.css'
 import { getUserData, storeUserData } from '../utils/indexedDBService'
+import CachedImage from './shared/CachedImage'
+
 const formatNumber = (num) => {
   if (num >= 1_000_000_000) return Math.floor(num / 1_000_000_000) + 'B'
   if (num >= 1_000_000) return Math.floor(num / 1_000_000) + 'M'
@@ -278,7 +280,7 @@ const Dashboard = ({ user }) => {
 
         <div className="new-homescreen-top-header">
           <div className="new-homescreen-username-container">
-            <img
+            <CachedImage
               src="/new/usernameframe.png"
               alt="Username Frame"
               className="new-homescreen-username-frame"
@@ -299,7 +301,7 @@ const Dashboard = ({ user }) => {
                 alt="User Avatar"
                 className="new-homescreen-user-img"
               />
-              <img
+              <CachedImage
                 src="/new/photoframe.png"
                 alt="Frame"
                 className="new-homescreen-frame-img"
@@ -312,7 +314,7 @@ const Dashboard = ({ user }) => {
               <div className="new-homescreen-header-lines">
                 <div className="new-homescreen-header-left-side">
                   <div className="new-homescreen-header-item">
-                    <img
+                    <CachedImage
                       src="/new/leaderboard.png"
                       alt="Level Icon"
                       className="new-homescreen-header-icon"
@@ -320,7 +322,7 @@ const Dashboard = ({ user }) => {
                     <span>Level: {level}</span>
                   </div>
                   <div className="new-homescreen-header-item">
-                    <img
+                    <CachedImage
                       src="/new/league.png"
                       alt="League Icon"
                       className="new-homescreen-header-icon"
@@ -331,7 +333,7 @@ const Dashboard = ({ user }) => {
 
                 <div className="new-homescreen-header-right-side">
                   <div className="new-homescreen-header-item">
-                    <img
+                    <CachedImage
                       src="/new/coins.png"
                       alt="Coins Icon"
                       className="new-homescreen-header-icon"
@@ -339,7 +341,7 @@ const Dashboard = ({ user }) => {
                     <span>{formattedCoins}</span>
                   </div>
                   <div className="new-homescreen-header-item">
-                    <img
+                    <CachedImage
                       src="/new/light.png"
                       alt="PPH Icon"
                       className="new-homescreen-header-icon"
@@ -353,19 +355,19 @@ const Dashboard = ({ user }) => {
         </div>
 
         <div className="new-homescreen-daily-section">
-          <img
+          <CachedImage
             src="/new/daily-rewards.png"
             alt="Daily Rewards"
             className="new-homescreen-daily-icon"
             onClick={() => handleNavigation('/daily-rewards')}
           />
-          <img
+          <CachedImage
             src="/new/daily-missions.png"
             alt="Daily Missions"
             className="new-homescreen-daily-icon"
             onClick={() => handleNavigation('/daily-missions')}
           />
-          <img
+          <CachedImage
             src="/new/daily-battle.png"
             alt="Daily Battle"
             className="new-homescreen-daily-icon"
@@ -379,7 +381,7 @@ const Dashboard = ({ user }) => {
             <div className="new-homescreen-ring-outer"></div>
             <div className="new-homescreen-ring-dashed"></div>
             <div className="new-homescreen-ring-inner"></div>
-            <img
+            <CachedImage
               src="/new/circle.png"
               className="new-homescreen-summoning-circle-img"
               alt="Summon Ring"
@@ -388,7 +390,7 @@ const Dashboard = ({ user }) => {
 
           {/* Character */}
           <div className="new-homescreen-character-wrapper">
-            <img
+            <CachedImage
               src="/new/frostguard.png"
               className="new-homescreen-character-img"
               alt="Character"
@@ -401,7 +403,7 @@ const Dashboard = ({ user }) => {
       {isMatchmakingModalOpen && (
         <div className="tournamentHome-modal">
           <div className="tournamentHome-modal-content">
-            <img
+            <CachedImage
               src="/new/tournament/cancel2.png"
               className="tournamentHome-cancel-button"
             />
@@ -418,7 +420,7 @@ const Dashboard = ({ user }) => {
             className="deck-error-modal-content"
             onClick={(e) => e.stopPropagation()} // ⛔ prevent closing when modal content is clicked
           >
-            <img
+            <CachedImage
               onClick={noCardsError}
               src="/new/tournament/builddeckBtn.png"
               alt="OK"

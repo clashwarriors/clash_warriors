@@ -8,6 +8,7 @@ import {
   getUserData,
 } from '../utils/indexedDBService'
 import { updateOnline } from '../utils/syncService'
+import { triggerHapticFeedback } from './tournament/utils/haptic'
 
 const xpMap = {
   common: 15,
@@ -47,7 +48,7 @@ const Modal = React.memo(({ user, isOpen, onClose, cardId, category }) => {
       // Fetch master JSON to get latest image / data
       try {
         const BACKEND_URL =
-          import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000'
+          import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000'
         const res = await fetch(`${BACKEND_URL}/api/cards`)
         const allCards = await res.json()
         const jsonCard = allCards.find((c) => c.cardId === cardId)
@@ -79,6 +80,7 @@ const Modal = React.memo(({ user, isOpen, onClose, cardId, category }) => {
   // Click outside modal to close
   useEffect(() => {
     const handleClickOutside = (e) => {
+      triggerHapticFeedback('medium')
       if (
         modalContentRef.current &&
         !modalContentRef.current.contains(e.target)
@@ -95,6 +97,8 @@ const Modal = React.memo(({ user, isOpen, onClose, cardId, category }) => {
 
   const purchaseCard = useCallback(async () => {
     if (!user?.userId || !cardDetails) return
+
+    triggerHapticFeedback('medium')
 
     try {
       const userData = await getUserData()

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { getFirestore, doc, getDoc } from 'firebase/firestore'
 import './style/leaderboard.style.css'
 import { getFromDB, saveToDB } from '../../utils/leaderboardHelper'
+import CachedImage from '../shared/CachedImage'
 
 const KEY = 'top100Users'
 
@@ -86,7 +87,7 @@ const LeaderBoard = ({ user }) => {
                 {/* Rank 2 */}
                 <div className="top3 top3-2">
                   <div className="top3-frame-wrapper">
-                    <img
+                    <CachedImage
                       src="/new/leaderboard/Rank2.png"
                       alt="Rank 2"
                       className="top2-frame"
@@ -105,7 +106,7 @@ const LeaderBoard = ({ user }) => {
                 {/* Rank 1 */}
                 <div className="top3 top3-1">
                   <div className="top3-frame-wrapper">
-                    <img
+                    <CachedImage
                       src="/new/leaderboard/Rank1.png"
                       alt="Rank 1"
                       className="top1-frame"
@@ -123,13 +124,13 @@ const LeaderBoard = ({ user }) => {
                 {/* Rank 3 */}
                 <div className="top3 top3-3">
                   <div className="top3-frame-wrapper">
-                    <img
+                    <CachedImage
                       src="/new/leaderboard/Rank3.png"
                       alt="Rank 3"
                       className="top3-frame"
                     />
                     <div className="top3-avatar">
-                      <img
+                      <CachedImage
                         src={top3[2]?.photo_url || defaultPhotoUrl}
                         alt="Rank 3 User"
                         style={{ height: '90px', marginTop: '-5px' }}

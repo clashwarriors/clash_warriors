@@ -6,11 +6,12 @@ import {
   fetchAndStoreAllCards,
   getAllCardsByRarity,
 } from '../utils/cardsStorer'
+import { triggerHapticFeedback } from './tournament/utils/haptic'
 
 const Card = React.memo(({ card, onClick }) => (
   <div
     className={`new-collection-character-list-item rarity-${card.rarity}`}
-    onClick={() => onClick(card)}
+    onClick={() => (onClick(card), triggerHapticFeedback())}
     style={{ cursor: 'pointer' }}
   >
     <img
@@ -92,12 +93,13 @@ const Collection = React.memo(({ user }) => {
   const handleCardClick = useCallback((card) => {
     setSelectedCard(card)
     setIsModalOpen(true)
+    triggerHapticFeedback()
   }, [])
 
   return (
     <div className="new-collection-container">
       <div className="new-collection-title-wrapper">
-        <img
+        <CachedImage
           src="/new/collectionpage/plates/cardshop-title.png"
           alt="Card Shop Title"
           className="new-collection-title"
@@ -114,7 +116,10 @@ const Collection = React.memo(({ user }) => {
               <div
                 key={rarity}
                 className="new-collection-rarity-item"
-                onClick={() => setSelectedRarity(rarity)}
+                onClick={() => {
+                  setSelectedRarity(rarity)
+                  triggerHapticFeedback()
+                }}
               >
                 <CachedImage
                   src={`/new/collectionpage/plates/${rarity}-plate.png`}
@@ -138,6 +143,7 @@ const Collection = React.memo(({ user }) => {
               onClick={() => {
                 setSelectedRarity(null)
                 setSelectedCharacter(null)
+                triggerHapticFeedback()
               }}
             >
               <CachedImage src="/new/x-close.png" alt="Close" />
@@ -147,7 +153,9 @@ const Collection = React.memo(({ user }) => {
               <div
                 key={char}
                 className="new-collection-rarity-item"
-                onClick={() => setSelectedCharacter(char)}
+                onClick={() => (
+                  setSelectedCharacter(char), triggerHapticFeedback()
+                )}
               >
                 <CachedImage
                   src={`/new/collectionpage/characters/${char}-plate.png`}

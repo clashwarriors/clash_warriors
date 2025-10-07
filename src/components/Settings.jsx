@@ -5,8 +5,16 @@ import {
   useTonWallet,
 } from '@tonconnect/ui-react'
 import { firestoreDB } from '../firebase'
-import { collection, getDocs, addDoc, doc, getDoc, updateDoc } from 'firebase/firestore'
+import {
+  collection,
+  getDocs,
+  addDoc,
+  doc,
+  getDoc,
+  updateDoc,
+} from 'firebase/firestore'
 import './style/settings.style.css'
+import { triggerHapticFeedback } from './tournament/utils/haptic'
 
 const Settings = ({ user }) => {
   const wallet = useTonWallet()

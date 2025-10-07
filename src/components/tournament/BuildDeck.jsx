@@ -16,6 +16,7 @@ import {
   dropHapticFeedback,
 } from '../tournament/utils/haptic'
 import './style/builddeck.style.css'
+import CachedImage from '../Shared/CachedImage'
 
 const BuildDeck = ({ user }) => {
   const [defaultCards, setDefaultCards] = useState([])
@@ -170,7 +171,7 @@ const BuildDeck = ({ user }) => {
       <div className="tutorial-box">
         <p className="tutorial-message">{message}</p>
         <div className="tutorial-next-wrapper" onClick={onNext}>
-          <img
+          <CachedImage
             src="/new/tournament/tournamentBtnTemp.png"
             alt="Next"
             className="tutorial-next-img"
@@ -189,7 +190,7 @@ const BuildDeck = ({ user }) => {
           className="selector-toggle"
           onClick={() => setIsOpen((prev) => !prev)}
         >
-          <img src="/right.png" alt="Toggle" className="selector-toggle-icon" />
+          <CachedImage src="/right.png" alt="Toggle" className="selector-toggle-icon" />
         </button>
         {isOpen && (
           <div className="selector-container" ref={selectorRef}>

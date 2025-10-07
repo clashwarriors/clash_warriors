@@ -91,6 +91,7 @@ const Tournament = ({ user }) => {
   }
 
   const handleBack = () => {
+    
     navigate('/')
     triggerHapticFeedback()
   }
@@ -102,6 +103,7 @@ const Tournament = ({ user }) => {
   }
 
   const handlePlayNow = () => {
+    triggerHapticFeedback()
     const savedChallenge = localStorage.getItem('friendlyChallenge')
     if (savedChallenge) {
       const challengeData = JSON.parse(savedChallenge)
@@ -146,6 +148,7 @@ const Tournament = ({ user }) => {
 
   // When creating a friendly challenge
   const handleFriendlyChallenge = async () => {
+    triggerHapticFeedback()
     const freshUserData = await getUserData()
     if (!freshUserData) return setAlertMessage('User data not found!')
 
@@ -173,6 +176,7 @@ const Tournament = ({ user }) => {
 
   // Define this function inside your Tournament component
   const handleJoinFriendlyMatch = async (joinCode) => {
+    triggerHapticFeedback()
     const joinCodeToUse = joinCode || code
     if (!joinCodeToUse || joinCodeToUse.length !== 6) return
 
@@ -205,6 +209,7 @@ const Tournament = ({ user }) => {
   }
 
   const sendChallenge = async () => {
+    triggerHapticFeedback()
     if (!friendUsername) {
       alert("Enter your friend's username first!")
       return
@@ -235,6 +240,7 @@ const Tournament = ({ user }) => {
 
   // To cancel friendly challenge
   const handleCancelFriendlyChallenge = async () => {
+    triggerHapticFeedback()
     if (friendlyChallenge) {
       // Remove from DB
       await cancelFriendlyMatch(user.userId, friendlyChallenge.code)

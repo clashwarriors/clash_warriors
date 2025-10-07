@@ -876,7 +876,9 @@ const Battle = ({ user }) => {
               className={`deck-card 
           ${phase !== PHASES.SELECTION ? 'disabled' : ''} 
           ${isBlocked ? 'used' : ''}`}
-              onClick={() => !isBlocked && handleCardClick(card)}
+              onClick={() => (
+                !isBlocked && handleCardClick(card), triggerHapticFeedback()
+              )}
             />
           )
         })}
