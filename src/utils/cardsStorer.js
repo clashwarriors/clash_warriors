@@ -1,6 +1,4 @@
 import { openDB } from 'idb'
-import { collection, getDocs } from 'firebase/firestore'
-import { firestoreDB } from '../firebase'
 
 const DB_NAME = 'all_cards_db'
 const DB_VERSION = 1
@@ -35,76 +33,76 @@ export const getAllCardsByRarity = async (rarity) => {
 
 // Fetch from Firestore & store in appropriate object store
 export const fetchAndStoreAllCards = async (
+  userId,
   onCardLoaded,
   forceRefresh = false
 ) => {
   const db = await initCardDB()
 
+  // ----- ONE-TIME CLEAR PER USER -----
+  if (userId) {
+    const flagKey = `cards_db_cleared_for_user_${userId}`
+    if (!localStorage.getItem(flagKey)) {
+      for (const store of db.objectStoreNames) {
+        const tx = db.transaction(store, 'readwrite')
+        tx.objectStore(store).clear()
+        await tx.done
+      }
+      localStorage.setItem(flagKey, 'true')
+      console.log(`✅ Card DB cleared once for user ${userId}`)
+    } else {
+      console.log(`✅ Card DB already cleared for user ${userId}`)
+    }
+  }
+
+  // ----- SKIP FETCH IF ALREADY CACHED -----
   if (!forceRefresh) {
-    // Only skip if not forcing
     const existing = await db.getAll(`cards_common`)
     if (existing.length > 0) {
-      console.log('✅ Cards already cached, skipping Firestore fetch')
+      console.log('✅ Cards already cached, skipping fetch')
       return
     }
   }
 
-  // Otherwise fetch from Firestore...
-  for (const rarity of RARITIES) {
-    for (const character of CHARACTERS) {
-      const cardsRef = collection(firestoreDB, rarity, character, 'cards')
-      const snapshot = await getDocs(cardsRef)
+  try {
+    // Fetch all cards from backend JSON
+    const BACKEND_URL =
+      import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000'
+    const res = await fetch(`${BACKEND_URL}/api/cards`)
+    let allCards = await res.json()
 
-      const tx = db.transaction(`cards_${rarity}`, 'readwrite')
-      const store = tx.objectStore(`cards_${rarity}`)
+    // ----- SORTING -----
+    const rarityOrder = ['common', 'uncommon', 'rare', 'mythical', 'legendary']
+    allCards.sort((a, b) => {
+      const rarityDiff =
+        rarityOrder.indexOf(a.rarity) - rarityOrder.indexOf(b.rarity)
+      if (rarityDiff !== 0) return rarityDiff
+      const charDiff = a.character.localeCompare(b.character)
+      if (charDiff !== 0) return charDiff
+      return a.cardId.localeCompare(b.cardId)
+    })
 
-      snapshot.forEach((doc) => {
-        const card = {
-          ...doc.data(),
-          rarity,
-          character,
-          cardId: doc.id,
-        }
-        store.put(card)
-        if (typeof onCardLoaded === 'function') {
-          onCardLoaded(card)
-        }
-      })
-
-      await tx.done
+    // ----- STORE CARDS -----
+    for (const rarity of RARITIES) {
+      for (const character of CHARACTERS) {
+        const tx = db.transaction(`cards_${rarity}`, 'readwrite')
+        const store = tx.objectStore(`cards_${rarity}`)
+        allCards
+          .filter(
+            (card) => card.rarity === rarity && card.character === character
+          )
+          .forEach((card) => {
+            store.put(card)
+            if (typeof onCardLoaded === 'function') onCardLoaded(card)
+          })
+        await tx.done
+      }
     }
+
+    console.log(
+      '✅ All cards fetched, sorted, and stored by rarity & character'
+    )
+  } catch (err) {
+    console.error('❌ Failed to fetch cards from Admin backend:', err)
   }
-
-  console.log('✅ All cards fetched and stored by rarity')
-}
-
-// ------------------------
-// TEMP: Force full refresh for v1
-// ------------------------
-export const ensureCardsFetchedV1 = async (onCardLoaded) => {
-  const db = await initCardDB()
-
-  if (localStorage.getItem('cardsFetchedV2')) {
-    console.log('✅ Cards already updated for v2.')
-    return
-  }
-
-  console.log('♻️ Clearing all cards from IndexedDB for v2 refresh...')
-
-  // Delete all object stores' content
-  for (const rarity of RARITIES) {
-    const tx = db.transaction(`cards_${rarity}`, 'readwrite')
-    const store = tx.objectStore(`cards_${rarity}`)
-    await store.clear()
-    await tx.done
-  }
-
-  console.log('♻️ All old cards removed, fetching fresh cards...')
-
-  // Force fetch ignoring cache
-  await fetchAndStoreAllCards(onCardLoaded, true)
-
-  // Set localStorage flag so it doesn’t rerun
-  localStorage.setItem('cardsFetchedV2', 'true')
-  console.log('✅ Cards IndexedDB fully refreshed and v2 flag set.')
 }

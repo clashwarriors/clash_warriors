@@ -5,7 +5,6 @@ import './style/collection.css'
 import {
   fetchAndStoreAllCards,
   getAllCardsByRarity,
-  ensureCardsFetchedV1,
 } from '../utils/cardsStorer'
 
 const Card = React.memo(({ card, onClick }) => (
@@ -38,15 +37,6 @@ const Collection = React.memo(({ user }) => {
     () => ['frostguard', 'stormscaller', 'starivya', 'xalgrith'],
     []
   )
-
-  useEffect(() => {
-    const updateCards = async () => {
-      await ensureCardsFetchedV1((card) => {
-        console.log('Card loaded:', card.cardId)
-      })
-    }
-    updateCards()
-  }, [])
 
   useEffect(() => {
     const loadInitialAndProgressive = async () => {
