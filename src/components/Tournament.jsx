@@ -7,7 +7,7 @@ import DefaultDeckModal from './tournament/DefaultDeckModal'
 import './tournament/style/tournament.style.css'
 import { triggerHapticFeedback } from './tournament/utils/haptic'
 import CachedImage from './shared/CachedImage'
-import { getUserData } from '../utils/indexedDBService'
+import { getUserData, getCards } from '../utils/indexedDBService'
 import {
   joinQueue,
   leaveQueue,
@@ -91,7 +91,6 @@ const Tournament = ({ user }) => {
   }
 
   const handleBack = () => {
-    
     navigate('/')
     triggerHapticFeedback()
   }
@@ -125,13 +124,20 @@ const Tournament = ({ user }) => {
       const userData = await getUserData()
       if (!userData) return setAlertMessage('User data not found!')
 
-      // Check if tutorial already completed in localStorage
+      // Get all cards from IndexedDB
+      const cards = await getCards()
+      const defaultDeckCards = cards.filter((card) => card.defaultDeck)
+      if (defaultDeckCards.length !== 10) {
+        return setAlertMessage(
+          'You must have exactly 10 cards in your default deck!'
+        )
+      }
+
+      // Check tutorial
       const tutorialCompleted =
         localStorage.getItem('tutorialCompleted') === 'true'
+      const isTutorial = !tutorialCompleted
 
-      const isTutorial = !tutorialCompleted // true only if tutorial not done
-
-      //     // Decide which queue to join
       const queueFunction = isTutorial ? joinTutorialQueue : joinQueue
       const added = await queueFunction(userData)
       if (!added) return
@@ -139,20 +145,34 @@ const Tournament = ({ user }) => {
       setIsMatchmaking(true)
       setIsMatchmakingModalOpen(true)
       setActiveModal('matchmaking')
-      // Listen for match and pass tutorial flag
+
       listenForMatch(userData.userId, navigate, isTutorial)
     } catch (error) {
       console.error(error)
+      setAlertMessage('Something went wrong. Please try again!')
     }
   }
 
   // When creating a friendly challenge
   const handleFriendlyChallenge = async () => {
     triggerHapticFeedback()
+
     const freshUserData = await getUserData()
     if (!freshUserData) return setAlertMessage('User data not found!')
 
     try {
+      // Fetch all user cards
+      const cards = await getCards()
+      const defaultDeckCards = cards.filter((card) => card.defaultDeck)
+
+      // Check if exactly 10 cards are selected
+      if (defaultDeckCards.length !== 10) {
+        return setAlertMessage(
+          'You must have exactly 10 cards in your default deck to create a friendly challenge!'
+        )
+      }
+
+      // Proceed to create the friendly challenge
       const result = await createFriendlyMatch(freshUserData)
 
       if (result.success) {
@@ -187,6 +207,18 @@ const Tournament = ({ user }) => {
     }
 
     try {
+      // Fetch all user cards
+      const cards = await getCards()
+      const defaultDeckCards = cards.filter((card) => card.defaultDeck)
+
+      // Validate default deck
+      if (defaultDeckCards.length !== 10) {
+        return setAlertMessage(
+          'You must have exactly 10 cards in your default deck to join a friendly match!'
+        )
+      }
+
+      // Proceed to join the friendly queue
       const result = await joinFriendlyQueue(freshUserData, joinCodeToUse)
       if (result.success) {
         console.log('Joined friendly match:', joinCodeToUse)
@@ -397,9 +429,10 @@ const Tournament = ({ user }) => {
               >
                 ✔
               </button>
-
+            </div>
+            <div>
               {alertMessage && (
-                <div className="alert-message">{alertMessage}</div>
+                <div className="battle-code-alert-message">{alertMessage}</div>
               )}
             </div>
           </div>

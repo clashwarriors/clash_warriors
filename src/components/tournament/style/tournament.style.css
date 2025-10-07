@@ -297,6 +297,8 @@
   margin: 15px 0;
   display: flex;
   justify-content: center; /* horizontal center */
+  flex-direction: column; /* stack children vertically */
+  align-items: center; /* center horizontally */
 }
 
 .battle-code-input {
@@ -334,7 +336,15 @@
   color: #ffc64c; /* active color */
 }
 
-/* Overlay background */
+.battle-code-alert-message {
+  margin-top: 8px;
+  color: #ff5555;
+  font-size: 14px;
+  font-weight: bold;
+  text-align: center;
+}
+
+/* Friendly Modal */
 .friendly-modal-overlay {
   position: fixed;
   top: 0;
