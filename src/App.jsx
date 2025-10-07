@@ -148,6 +148,24 @@ const App = () => {
       const tg = window.Telegram?.WebApp
       if (!tg) return
 
+      if (window.TelegramWebviewProxy?.postEvent) {
+        const data = JSON.stringify({ is_visible: true })
+        window.TelegramWebviewProxy.postEvent('web_app_setup_back_button', data)
+
+        // Request fullscreen mode
+        window.TelegramWebviewProxy.postEvent(
+          'web_app_request_fullscreen',
+          '{}'
+        )
+        window.TelegramWebviewProxy.postEvent(
+          'web_app_setup_swipe_behavior',
+          JSON.stringify({ allow_vertical_swipe: false })
+        )
+      }
+
+      tg.disableClosingConfirmation()
+      tg.expand()
+
       // Telegram Setup
       tg.disableClosingConfirmation()
       tg.expand()
