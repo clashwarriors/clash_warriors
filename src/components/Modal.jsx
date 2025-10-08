@@ -47,8 +47,7 @@ const Modal = React.memo(({ user, isOpen, onClose, cardId, category }) => {
 
       // Fetch master JSON to get latest image / data
       try {
-        const BACKEND_URL =
-          import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000'
+        const BACKEND_URL = import.meta.env.VITE_API_BASE_URL
         const res = await fetch(`${BACKEND_URL}/api/cards`)
         const allCards = await res.json()
         const jsonCard = allCards.find((c) => c.cardId === cardId)
@@ -147,7 +146,7 @@ const Modal = React.memo(({ user, isOpen, onClose, cardId, category }) => {
         <div className="new-modal-body">
           <div className={`new-modal-card-frame modal-rarity-${category}`}>
             <img
-              src={cardDetails?.image ?? '/fallback.png'} // remove fallback to photo
+              src={cardDetails?.image ?? cardDetails?.photo ?? '/fallback.png'} // remove fallback to photo
               alt={cardDetails?.name || 'Card Image'}
               className="new-modal-card-image"
             />

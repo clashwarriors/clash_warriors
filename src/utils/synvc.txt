@@ -1,0 +1,78 @@
+// firebaseSyncService.js
+import axios from 'axios'
+import {
+  getUserData,
+  storeUserData,
+  getCards,
+  storeCards,
+  setLastUpdate,
+} from './indexedDBService'
+
+const BACKEND_URL = import.meta.env.VITE_API_BASE_URL
+const API_BASE = `${BACKEND_URL}/api`
+
+/**
+ * Initialize / sync user + cards from backend
+ * Handles multi-device merge automatically
+ */
+export const initializeUser = async (userId, telegramUser) => {
+  try {
+    // 1️⃣ Load local data from IndexedDB
+    let localUser = await getUserData()
+    let localCards = await getCards()
+
+    // 2️⃣ Fetch backend data
+    const { data: backendUser } = await axios
+      .get(`${API_BASE}/user/${userId}`)
+      .catch(() => ({ data: null }))
+    const { data: backendCards } = await axios
+      .get(`${API_BASE}/user-cards/${userId}`)
+      .catch(() => ({ data: [] }))
+
+    // 3️⃣ Merge user data
+    let mergedUser = { ...telegramUser, coins: 1000000, lastUpdate: Date.now() }
+    if (backendUser && backendUser.lastUpdate > (localUser?.lastUpdate || 0)) {
+      mergedUser = backendUser
+    } else if (
+      localUser &&
+      localUser.lastUpdate > (backendUser?.lastUpdate || 0)
+    ) {
+      mergedUser = localUser
+    }
+
+    // 4️⃣ Merge cards
+    const cardMap = {}
+    ;[...(localCards || []), ...(backendCards || [])].forEach((card) => {
+      cardMap[card.cardId] = card // you can use timestamp per card if available for latest
+    })
+    const mergedCards = Object.values(cardMap)
+
+    // 5️⃣ Save merged data locally
+    await storeUserData(mergedUser)
+    await storeCards(mergedCards)
+    await setLastUpdate(Date.now())
+
+    // 6️⃣ Push merged data to backend
+    await axios.post(`${API_BASE}/user/${userId}`, { userData: mergedUser })
+    await axios.post(`${API_BASE}/user-cards/${userId}`, { cards: mergedCards })
+
+    console.log('✅ User & cards initialized and synced.')
+    return { user: mergedUser, cards: mergedCards }
+  } catch (err) {
+    console.error('❌ Failed to initialize user:', err)
+    return { user: null, cards: [] }
+  }
+}
+
+/**
+ * Trigger manual sync after specific actions
+ */
+export const triggerSync = async (userData) => {
+  try {
+    if (!userData?.userId) return
+    await initializeUser(userData.userId, userData)
+    console.log('🔄 Manual sync complete.')
+  } catch (err) {
+    console.error('⚠️ Failed to sync:', err)
+  }
+}

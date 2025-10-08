@@ -1,7 +1,7 @@
 // firebaseSyncService.js
 import axios from 'axios'
 
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000'
+const BACKEND_URL = import.meta.env.VITE_API_BASE_URL
 const API_BASE = `${BACKEND_URL}/api`
 
 // ---------------------------
