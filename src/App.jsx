@@ -8,19 +8,7 @@ import {
 import { TonConnectUIProvider } from '@tonconnect/ui-react'
 import { preloadImagesToIDB } from './utils/imagePreloader'
 import imageList from './assets/imageList.json'
-import { firestoreDB } from './firebase'
-import {
-  doc,
-  getDoc,
-  setDoc,
-  updateDoc,
-  collectionGroup,
-  getDocs,
-  writeBatch,
-} from 'firebase/firestore'
-import { initializeLocalData } from './utils/syncService'
-import { getUserData } from './utils/indexedDBService'
-import { updateUserCardsFromMaster } from './utils/updater'
+import { initializeUser } from './utils/firebaseSyncService'
 import {
   TrackGroups,
   TwaAnalyticsProvider,
@@ -145,108 +133,100 @@ const App = () => {
   // 3️⃣ Initialize Telegram WebApp + User Session
   useEffect(() => {
     const initTelegram = async () => {
-      const tg = window.Telegram?.WebApp
-      if (!tg) return
+      try {
+        const tg = window.Telegram?.WebApp
+        if (!tg) {
+          console.warn(
+            'Telegram WebApp not detected — app runs only inside Telegram.'
+          )
+          return
+        }
 
-      if (window.TelegramWebviewProxy?.postEvent) {
-        const data = JSON.stringify({ is_visible: true })
-        window.TelegramWebviewProxy.postEvent('web_app_setup_back_button', data)
+        // Fullscreen & swipe setup
+        if (window.TelegramWebviewProxy?.postEvent) {
+          window.TelegramWebviewProxy.postEvent(
+            'web_app_setup_back_button',
+            JSON.stringify({ is_visible: true })
+          )
+          window.TelegramWebviewProxy.postEvent(
+            'web_app_request_fullscreen',
+            '{}'
+          )
+          window.TelegramWebviewProxy.postEvent(
+            'web_app_setup_swipe_behavior',
+            JSON.stringify({ allow_vertical_swipe: false })
+          )
+        }
 
-        // Request fullscreen mode
-        window.TelegramWebviewProxy.postEvent(
-          'web_app_request_fullscreen',
-          '{}'
-        )
-        window.TelegramWebviewProxy.postEvent(
-          'web_app_setup_swipe_behavior',
-          JSON.stringify({ allow_vertical_swipe: false })
-        )
+        // Telegram setup
+        tg.ready()
+        tg.expand()
+        tg.disableClosingConfirmation()
+        tg.setHeaderColor('#000000')
+
+        if (tg.BackButton) {
+          tg.BackButton.show()
+          tg.BackButton.onClick(() => {
+            try {
+              window.history.back()
+            } catch {
+              tg.BackButton.hide()
+            }
+          })
+        }
+
+        if (tg.SettingsButton) {
+          tg.SettingsButton.show()
+          tg.SettingsButton.onClick(() => {
+            window.location.href = '/settings'
+          })
+        }
+
+        // Fetch Telegram user
+        const telegramUser = tg.initDataUnsafe?.user
+        if (!telegramUser?.id) {
+          console.warn('⚠️ Telegram user not found.')
+          setStatus('Unable to fetch Telegram user.')
+          return
+        }
+
+        setStatus('Syncing user data...')
+        const { user } = await handleUserSession(telegramUser)
+        setUser(user)
+        localStorage.setItem('userId', user.userId)
+        setReady((prev) => ({ ...prev, data: true }))
+        setStatus('Ready!')
+      } catch (err) {
+        console.error('❌ Telegram init failed:', err)
+        setStatus('Initialization error.')
       }
-
-      tg.disableClosingConfirmation()
-      tg.expand()
-
-      // Telegram Setup
-      tg.disableClosingConfirmation()
-      tg.expand()
-      tg.setHeaderColor('#000000')
-      tg.BackButton.show()
-      tg.BackButton.onClick(() => window.history.back())
-      tg.SettingsButton.show().onClick(
-        () => (window.location.href = '/settings')
-      )
-
-      const telegramUser = tg.initDataUnsafe?.user
-      if (telegramUser) await handleUserSession(telegramUser)
     }
 
     initTelegram()
   }, [])
 
-  // 4️⃣ Handle User Session + Firestore + IndexedDB
-  const handleUserSession = async (tgUser) => {
+  // 4️⃣ Handle User Session
+  const handleUserSession = async (telegramUser) => {
     try {
-      const userId = tgUser.id.toString()
-      const userRef = doc(firestoreDB, 'users', userId)
-      const userSnap = await getDoc(userRef)
-      const existing = userSnap.exists() ? userSnap.data() : null
+      const userId = telegramUser.id.toString()
+      const result = await initializeUser(userId, telegramUser)
 
-      const now = new Date()
-      const newUser = {
-        userId,
-        first_name: tgUser.first_name || '',
-        last_name: tgUser.last_name || '',
-        username: tgUser.username || '',
-        photo_url: tgUser.photo_url || '',
-        coins: existing?.coins ?? 1000000,
-        xp: existing?.xp ?? 0,
-        pph: existing?.pph ?? 1500,
-        level: existing?.level ?? 1,
-        streak: existing?.streak ?? 0,
-        tutorialDone: existing?.tutorialDone ?? false,
-        registration_timestamp:
-          existing?.registration_timestamp ?? now.toISOString(),
+      if (!result?.user) throw new Error('User initialization failed')
+
+      // ✅ Optional: seed free cards if brand-new user
+      if (
+        (result.user.coins || 0) === 1000000 &&
+        (!result.cards || result.cards.length === 0)
+      ) {
+        await seedFreeCards(userId)
       }
 
-      if (!existing) {
-        await setDoc(userRef, newUser)
-        await seedFreeCards(userId) // batch seed first 10 free cards
-      } else {
-        await updateDoc(userRef, newUser)
-      }
-
-      // Initialize IndexedDB + user cards
-      await initializeLocalData(userId)
-      await updateUserCardsFromMaster()
-      const userData = await getUserData()
-      setUser(userData)
-      localStorage.setItem('userId', userId)
-      setReady((prev) => ({ ...prev, data: true }))
+      console.log('✅ User session initialized:', result.user)
+      return result
     } catch (err) {
-      console.error('User session failed:', err)
-      setStatus('User verification error.')
-    }
-  }
-
-  // 5️⃣ Seed Free Cards for New Users (Batch Write)
-  const seedFreeCards = async (userId) => {
-    try {
-      const freeCardsSnap = await getDocs(collectionGroup(firestoreDB, 'cards'))
-      const freeCards = freeCardsSnap.docs
-        .filter((d) => d.ref.path.startsWith('free/'))
-        .slice(0, 10)
-
-      const batch = writeBatch(firestoreDB)
-      freeCards.forEach((cardDoc) => {
-        const userCardRef = doc(
-          firestoreDB,
-          `users/${userId}/cards/${cardDoc.id}`
-        )
-        batch.set(userCardRef, cardDoc.data())
-      })
-      await batch.commit()
-    } catch (err) {
-      console.error('Failed to seed free cards:', err)
+      console.error('❌ User session error:', err)
+      setStatus('User sync failed.')
+      return { user: null, cards: [] }
     }
   }
 

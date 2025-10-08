@@ -3,7 +3,7 @@ import confetti from 'canvas-confetti'
 import './style/dailyRewards.style.css'
 import CachedImage from '../../Shared/CachedImage'
 import { getUserData, storeUserData } from '../../../utils/indexedDBService'
-import { updateOnline } from '../../../utils/syncService'
+import { syncUser } from '../../../utils/firebaseSyncService'
 const DailyRewards = React.memo(({ user }) => {
   const [streak, setStreak] = useState(0)
   const [claimedToday, setClaimedToday] = useState(false)
@@ -123,7 +123,7 @@ const DailyRewards = React.memo(({ user }) => {
       await storeUserData(updatedUserData)
 
       // Background sync — no UI wait
-      updateOnline(updatedUserData).catch(console.error)
+      syncUser(updatedUserData)
 
       // UI updates
       triggerConfetti()

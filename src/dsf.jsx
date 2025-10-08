@@ -9,10 +9,7 @@ import {
 import { TonConnectUIProvider } from '@tonconnect/ui-react'
 import { preloadImagesToIDB } from './utils/imagePreloader'
 import { getUserData } from './utils/indexedDBService'
-import { initializeLocalData } from './utils/syncService'
-import { startCoinGenerator, stopCoinGenerator } from './utils/pphScript'
 import imageList from './assets/imageList.json'
-import { updateUserCardsFromMaster } from './utils/updater'
 
 import Dashboard from './components/Dashboard'
 import Footer from './components/Footer'
@@ -44,61 +41,51 @@ function App() {
   const [status, setStatus] = useState('Loading... Please wait.')
   const [assetsReady, setAssetsReady] = useState(false)
 
+  // ✅ MOCK USER LOADING FROM INDEXEDDB / FIRESTORE
   useEffect(() => {
-    const mockUserId = '6845597761'
-    const initializeApp = async () => {
+    const MOCK_USER_ID = '6845597761' // your real userId
+    const loadUser = async () => {
       try {
-        await initializeLocalData(mockUserId, false)
-        const userData = await getUserData() // Load from IndexedDB
-        setUser(userData)
-        setStatus('Data initialized.')
-        await updateUserCardsFromMaster()
+        const userData = await getUserData(MOCK_USER_ID) // directly fetch by userId
+        if (userData) {
+          setUser(userData)
+          setStatus('Data loaded from local DB.')
+        } else {
+          setStatus('User not found locally.')
+        }
       } catch (err) {
-        console.error('Initialization failed:', err)
-        setStatus('Error during initialization.')
+        console.error('Failed to load user:', err)
+        setStatus('Error loading user data.')
       }
     }
 
-    initializeApp()
+    loadUser()
   }, [])
 
+  // Coin generator logic
   useEffect(() => {
-    if (navigator.onLine) startCoinGenerator()
-
     const handleOnline = () => startCoinGenerator()
     const handleOffline = () => stopCoinGenerator()
-
     window.addEventListener('online', handleOnline)
     window.addEventListener('offline', handleOffline)
-
     return () => {
-      stopCoinGenerator()
       window.removeEventListener('online', handleOnline)
       window.removeEventListener('offline', handleOffline)
     }
   }, [])
 
-  // Telegram WebApp initialization and configuration
-  if (window.Telegram?.WebApp?.initData) {
+  // Telegram WebApp config (optional, can leave as mock)
+  if (window.Telegram?.WebApp) {
     const tg = window.Telegram.WebApp
-
-    // Set Telegram header color
     tg.setHeaderColor('#000000')
-
-    // Show the Telegram Back Button
     tg.BackButton.show()
-
-    // Handle Telegram Back Button Click
     tg.BackButton.onClick(() => {
-      if (window.history.length > 1) {
-        window.history.back() // Go back if there's history
-      } else {
-        tg.close() // Close the WebApp if no history is available
-      }
+      if (window.history.length > 1) window.history.back()
+      else tg.close()
     })
   }
 
-  // Load and preload assets
+  // Preload images
   useEffect(() => {
     const loadAssets = async () => {
       try {
@@ -109,11 +96,9 @@ function App() {
         setStatus('Error loading assets.')
       }
     }
-
     loadAssets()
   }, [])
 
-  // Render loading screen while user data or assets are not ready
   if (!user || !assetsReady) {
     return (
       <div>
@@ -154,23 +139,12 @@ const MainContent = React.memo(({ user, status }) => {
   const navigate = useNavigate()
 
   useEffect(() => {
-    const tg = window.Telegram.WebApp
-
-    tg.ready()
-
-    // Show "Settings" in ⋯ menu and handle click
-    tg.SettingsButton.show().onClick(() => {
-      console.log('Settings button clicked')
-      navigate('/settings')
-    })
-
-    // Clean up on unmount
-    return () => {
-      tg.SettingsButton.offClick()
-    }
+    const tg = window.Telegram?.WebApp
+    tg?.ready()
+    tg?.SettingsButton.show().onClick(() => navigate('/settings'))
+    return () => tg?.SettingsButton.offClick()
   }, [navigate])
 
-  // Determine whether to hide footer
   const hideFooterPages = [
     '/tournament',
     '/builddeck',

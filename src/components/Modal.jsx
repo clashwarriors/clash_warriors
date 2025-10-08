@@ -7,7 +7,7 @@ import {
   getCards,
   getUserData,
 } from '../utils/indexedDBService'
-import { updateOnline } from '../utils/syncService'
+import { syncUser } from '../utils/firebaseSyncService'
 import { triggerHapticFeedback } from './tournament/utils/haptic'
 
 const xpMap = {
@@ -131,7 +131,7 @@ const Modal = React.memo(({ user, isOpen, onClose, cardId, category }) => {
 
       await storeUserData(updatedUserData)
       setIsCardPurchased(true)
-      await updateOnline(updatedUserData)
+      await syncUser(updatedUserData)
       console.log('Card purchased and stored in IndexedDB:', cardData)
     } catch (error) {
       console.error('❌ Error purchasing card:', error)
