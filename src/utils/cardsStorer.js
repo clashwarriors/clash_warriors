@@ -35,7 +35,8 @@ export const getAllCardsByRarity = async (rarity) => {
 export const fetchAndStoreAllCards = async (
   userId,
   onCardLoaded,
-  forceRefresh = false
+  forceRefresh = false,
+  onComplete // NEW: callback when all cards are done
 ) => {
   const db = await initCardDB()
 
@@ -60,14 +61,14 @@ export const fetchAndStoreAllCards = async (
     const existing = await db.getAll(`cards_common`)
     if (existing.length > 0) {
       console.log('✅ Cards already cached, skipping fetch')
+      if (typeof onComplete === 'function') onComplete() // call refresh anyway
       return
     }
   }
 
   try {
     // Fetch all cards from backend JSON
-    const BACKEND_URL =
-      import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000'
+    const BACKEND_URL = import.meta.env.VITE_API_BASE_URL
     const res = await fetch(`${BACKEND_URL}/api/cards`)
     let allCards = await res.json()
 
@@ -102,6 +103,9 @@ export const fetchAndStoreAllCards = async (
     console.log(
       '✅ All cards fetched, sorted, and stored by rarity & character'
     )
+
+    // ----- TRIGGER REFRESH -----
+    if (typeof onComplete === 'function') onComplete()
   } catch (err) {
     console.error('❌ Failed to fetch cards from Admin backend:', err)
   }

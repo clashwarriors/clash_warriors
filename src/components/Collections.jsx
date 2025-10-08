@@ -38,47 +38,44 @@ const Collection = React.memo(({ user }) => {
     () => ['frostguard', 'stormscaller', 'starivya', 'xalgrith'],
     []
   )
-
   useEffect(() => {
-    const loadInitialAndProgressive = async () => {
-      // Load COMMON first
+    const loadCards = async () => {
+      if (!user?.userId) return
+
+      setLoading(true)
+
+      // ----- Load COMMON first -----
       const commonCards = await getAllCardsByRarity('common')
       setCards(commonCards)
       setLoading(false)
 
-      // Now fetch all and progressively add
-      await fetchAndStoreAllCards((card) => {
-        setCards((prev) => {
-          const exists = prev.find((c) => c.cardId === card.cardId)
-          return exists ? prev : [...prev, card]
-        })
-      })
-    }
-
-    loadInitialAndProgressive()
-  }, [])
-
-  useEffect(() => {
-    const loadAllCards = async () => {
+      // ----- Load all rarities initially -----
       const allCards = []
       for (const rarity of rarities) {
         const cardsByRarity = await getAllCardsByRarity(rarity)
         allCards.push(...cardsByRarity)
       }
       setCards(allCards)
-      setLoading(false)
 
-      // Fetch latest from Firestore & update progressively
-      await fetchAndStoreAllCards((card) => {
-        setCards((prev) => {
-          const exists = prev.find((c) => c.cardId === card.cardId)
-          return exists ? prev : [...prev, card]
-        })
-      })
+      // ----- Progressive fetch & update from Firestore -----
+      await fetchAndStoreAllCards(
+        user.userId, // corrected userId
+        (card) => {
+          setCards((prev) => {
+            const exists = prev.find((c) => c.cardId === card.cardId)
+            return exists ? prev : [...prev, card]
+          })
+        },
+        false, // forceRefresh = false
+        () => {
+          // Refresh UI once all cards fetched & stored
+          setCards((prev) => [...prev])
+        }
+      )
     }
 
-    loadAllCards()
-  }, [rarities])
+    loadCards()
+  }, [rarities, user?.userId])
 
   const filteredCards = useMemo(() => {
     return cards.filter((card) => {
