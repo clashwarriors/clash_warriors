@@ -16,6 +16,12 @@ function openIndexedDB() {
     const request = indexedDB.open('ClashDB')
     request.onerror = () => reject('❌ Failed to open IndexedDB')
     request.onsuccess = () => resolve(request.result)
+    request.onupgradeneeded = (e) => {
+      const db = e.target.result
+      if (!db.objectStoreNames.contains('cards')) {
+        db.createObjectStore('cards', { keyPath: 'cardId' })
+      }
+    }
   })
 }
 
@@ -29,13 +35,13 @@ async function getAllCards(idb) {
   })
 }
 
-async function saveCard(idb, card) {
+async function saveCardsBatch(idb, cards) {
   return new Promise((resolve, reject) => {
     const tx = idb.transaction('cards', 'readwrite')
     const store = tx.objectStore('cards')
-    const req = store.put(card)
-    req.onsuccess = () => resolve()
-    req.onerror = () => reject('❌ Failed to save card')
+    cards.forEach((card) => store.put(card))
+    tx.oncomplete = () => resolve()
+    tx.onerror = () => reject('❌ Failed to save cards batch')
   })
 }
 
@@ -45,8 +51,9 @@ export async function initializeCardImages() {
     const localCards = await getAllCards(idb)
 
     if (localCards.length === 0) {
-      // 🟢 First time: fetch all cards from Firestore
       console.log('Fetching all cards for first time...')
+      const allCards = []
+
       for (const rarity of RARITIES) {
         const colRef = collection(firestoreDB, rarity)
         const cardNameDocs = await getDocs(colRef)
@@ -60,49 +67,70 @@ export async function initializeCardImages() {
           )
           const cardDocs = await getDocs(cardIdCol)
 
-          for (const cardDoc of cardDocs.docs) {
+          cardDocs.docs.forEach((cardDoc) => {
             const data = cardDoc.data()
-            const card = {
+            allCards.push({
               cardId: cardDoc.id,
               name: cardNameDoc.id,
               rarity,
               photo: data.image || null,
-            }
-            await saveCard(idb, card)
-          }
+            })
+          })
         }
       }
+
+      // Save all cards in one batch
+      await saveCardsBatch(idb, allCards)
       console.log('✅ IndexedDB initialized with all cards')
       localStorage.setItem('cardsInitialized', 'true')
     } else {
-      // 🔹 Subsequent runs: fetch only missing images
       console.log('Fetching missing images only...')
-      for (const card of localCards) {
-        if (card.photo) continue // already has image
+      const missingCards = localCards.filter((c) => !c.photo)
 
-        for (const rarity of RARITIES) {
-          try {
-            const docRef = doc(
-              firestoreDB,
-              rarity,
-              card.name.toLowerCase(),
-              'cards',
-              card.cardId
-            )
-            const snapshot = await getDoc(docRef)
-            if (snapshot.exists()) {
-              const data = snapshot.data()
-              if (data.image) {
-                card.photo = data.image
-                await saveCard(idb, card)
-                break
+      // Limit concurrency to avoid freezing low-end phones
+      const CONCURRENCY = 3
+      let index = 0
+
+      async function fetchNextBatch() {
+        if (index >= missingCards.length) return
+        const batch = missingCards.slice(index, index + CONCURRENCY)
+        index += CONCURRENCY
+
+        await Promise.all(
+          batch.map(async (card) => {
+            for (const rarity of RARITIES) {
+              try {
+                const docRef = doc(
+                  firestoreDB,
+                  rarity,
+                  card.name.toLowerCase(),
+                  'cards',
+                  card.cardId
+                )
+                const snapshot = await getDoc(docRef)
+                if (snapshot.exists()) {
+                  const data = snapshot.data()
+                  if (data.image) {
+                    card.photo = data.image
+                    break
+                  }
+                }
+              } catch (err) {
+                console.warn(
+                  `Error fetching ${card.name} (${card.cardId})`,
+                  err
+                )
               }
             }
-          } catch (err) {
-            console.warn(`Error fetching ${card.name} (${card.cardId})`, err)
-          }
-        }
+          })
+        )
+
+        // Save updated batch
+        await saveCardsBatch(idb, batch)
+        await fetchNextBatch()
       }
+
+      await fetchNextBatch()
       console.log('✅ Missing card images updated')
     }
   } catch (err) {

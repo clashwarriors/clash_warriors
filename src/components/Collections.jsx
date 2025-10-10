@@ -8,6 +8,7 @@ import {
 } from '../utils/cardsStorer'
 import { triggerHapticFeedback } from './tournament/utils/haptic'
 
+// ----- Card Component -----
 const Card = React.memo(({ card, onClick }) => (
   <div
     className={`new-collection-character-list-item rarity-${card.rarity}`}
@@ -18,10 +19,12 @@ const Card = React.memo(({ card, onClick }) => (
       src={card.image}
       alt={card.character}
       style={{ width: '100%', height: '160px', borderRadius: '10px' }}
+      loading="lazy"
     />
   </div>
 ))
 
+// ----- Collection Component -----
 const Collection = React.memo(({ user }) => {
   const [selectedRarity, setSelectedRarity] = useState(null)
   const [selectedCharacter, setSelectedCharacter] = useState(null)
@@ -38,61 +41,101 @@ const Collection = React.memo(({ user }) => {
     () => ['frostguard', 'stormscaller', 'starivya', 'xalgrith'],
     []
   )
+
+  // ----- Load Cards -----
   useEffect(() => {
+    if (!user?.userId) return
+
+    let cancelled = false
+    setLoading(true)
+
     const loadCards = async () => {
-      if (!user?.userId) return
+      // Fetch from IndexedDB
+      const allCardsByRarity = await Promise.all(
+        rarities.map((r) => getAllCardsByRarity(r))
+      )
+      const allCardsFlat = allCardsByRarity.flat()
 
-      setLoading(true)
+      if (allCardsFlat.length > 0) {
+        // Dedupe cards by unique key: cardId + rarity + character
+        const uniqueMap = new Map()
+        allCardsFlat.forEach((c) => {
+          const key = `${c.cardId}-${c.rarity}-${c.character}`
+          if (!uniqueMap.has(key)) uniqueMap.set(key, c)
+        })
 
-      // ----- Load COMMON first -----
-      const commonCards = await getAllCardsByRarity('common')
-      setCards(commonCards)
-      setLoading(false)
-
-      // ----- Load all rarities initially -----
-      const allCards = []
-      for (const rarity of rarities) {
-        const cardsByRarity = await getAllCardsByRarity(rarity)
-        allCards.push(...cardsByRarity)
+        // Batch render to prevent freeze
+        const batchSize = 20
+        const uniqueCards = Array.from(uniqueMap.values())
+        for (let i = 0; i < uniqueCards.length; i += batchSize) {
+          if (cancelled) return
+          setCards((prev) => [...prev, ...uniqueCards.slice(i, i + batchSize)])
+          await new Promise((r) => setTimeout(r, 0)) // yield
+        }
+        setLoading(false)
+        return
       }
-      setCards(allCards)
 
-      // ----- Progressive fetch & update from Firestore -----
+      // If DB empty, fetch from backend
       await fetchAndStoreAllCards(
-        user.userId, // corrected userId
+        user.userId,
         (card) => {
           setCards((prev) => {
-            const exists = prev.find((c) => c.cardId === card.cardId)
-            return exists ? prev : [...prev, card]
+            const key = `${card.cardId}-${card.rarity}-${card.character}`
+            if (
+              prev.find((c) => `${c.cardId}-${c.rarity}-${c.character}` === key)
+            )
+              return prev
+            return [...prev, card]
           })
         },
-        false, // forceRefresh = false
-        () => {
-          // Refresh UI once all cards fetched & stored
-          setCards((prev) => [...prev])
-        }
+        false
       )
+
+      setLoading(false)
     }
 
     loadCards()
-  }, [rarities, user?.userId])
+    return () => {
+      cancelled = true
+    }
+  }, [user?.userId])
+
+  // ----- Filter Cards -----
+  const filteredByRarity = useMemo(() => {
+    if (!selectedRarity) return cards
+    return cards.filter((c) => c.rarity === selectedRarity)
+  }, [cards, selectedRarity])
 
   const filteredCards = useMemo(() => {
-    return cards.filter((card) => {
-      const matchRarity = selectedRarity ? card.rarity === selectedRarity : true
-      const matchCharacter = selectedCharacter
-        ? card.character === selectedCharacter
-        : true
-      return matchRarity && matchCharacter
-    })
-  }, [cards, selectedRarity, selectedCharacter])
+    if (!selectedCharacter) return filteredByRarity
+    return filteredByRarity.filter((c) => c.character === selectedCharacter)
+  }, [filteredByRarity, selectedCharacter])
 
+  // ----- Deduplicate for rendering -----
+  const uniqueFilteredCards = useMemo(() => {
+    const map = new Map()
+    filteredCards.forEach((c) => {
+      const key = `${c.cardId}-${c.rarity}-${c.character}`
+      if (!map.has(key)) map.set(key, c)
+    })
+    return Array.from(map.values())
+  }, [filteredCards])
+
+  // ----- Handlers -----
   const handleCardClick = useCallback((card) => {
     setSelectedCard(card)
     setIsModalOpen(true)
     triggerHapticFeedback()
   }, [])
 
+  const closeFilters = () => {
+    setSelectedRarity(null)
+    setSelectedCharacter(null)
+    triggerHapticFeedback()
+  }
+
+  // ----- Render -----
   return (
     <div className="new-collection-container">
       <div className="new-collection-title-wrapper">
@@ -103,73 +146,63 @@ const Collection = React.memo(({ user }) => {
         />
       </div>
 
-      <div className="new-collection-rarity-container">
-        {!selectedRarity && (
-          <div
-            className="new-collection-rarity-scroll"
-            style={{ paddingTop: '20px' }}
-          >
-            {rarities.map((rarity) => (
-              <div
-                key={rarity}
-                className="new-collection-rarity-item"
-                onClick={() => {
-                  setSelectedRarity(rarity)
-                  triggerHapticFeedback()
-                }}
-              >
-                <CachedImage
-                  src={`/new/collectionpage/plates/${rarity}-plate.png`}
-                  alt={rarity}
-                />
-                <span>{rarity.toUpperCase()}</span>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      <div className="new-collection-rarity-container">
-        {selectedRarity && (
-          <div
-            className="new-collection-rarity-scroll"
-            style={{ paddingTop: '20px' }}
-          >
-            <button
-              className="new-collection-close-button0"
-              onClick={() => {
-                setSelectedRarity(null)
-                setSelectedCharacter(null)
-                triggerHapticFeedback()
-              }}
+      {!selectedRarity && (
+        <div
+          className="new-collection-rarity-scroll"
+          style={{ paddingTop: '20px' }}
+        >
+          {rarities.map((rarity) => (
+            <div
+              key={rarity}
+              className="new-collection-rarity-item"
+              onClick={() => setSelectedRarity(rarity)}
             >
-              <CachedImage src="/new/x-close.png" alt="Close" />
-            </button>
+              <CachedImage
+                src={`/new/collectionpage/plates/${rarity}-plate.png`}
+                alt={rarity}
+              />
+              <span>{rarity.toUpperCase()}</span>
+            </div>
+          ))}
+        </div>
+      )}
 
-            {characters.map((char) => (
-              <div
-                key={char}
-                className="new-collection-rarity-item"
-                onClick={() => (
-                  setSelectedCharacter(char), triggerHapticFeedback()
-                )}
-              >
-                <CachedImage
-                  src={`/new/collectionpage/characters/${char}-plate.png`}
-                  alt={char}
-                />
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+      {selectedRarity && (
+        <div
+          className="new-collection-rarity-scroll"
+          style={{ paddingTop: '20px' }}
+        >
+          <button
+            className="new-collection-close-button0"
+            onClick={closeFilters}
+          >
+            <CachedImage src="/new/x-close.png" alt="Close" />
+          </button>
+          {characters.map((char) => (
+            <div
+              key={char}
+              className="new-collection-rarity-item"
+              onClick={() => setSelectedCharacter(char)}
+            >
+              <CachedImage
+                src={`/new/collectionpage/characters/${char}-plate.png`}
+                alt={char}
+              />
+            </div>
+          ))}
+        </div>
+      )}
 
       <div className="new-collection-cards-container">
         {loading ? (
           <div className="loading-message">Loading cards...</div>
-        ) : filteredCards.length > 0 ? (
-          filteredCards.map((card) => (
-            <Card key={card.cardId} card={card} onClick={handleCardClick} />
+        ) : uniqueFilteredCards.length > 0 ? (
+          uniqueFilteredCards.map((card) => (
+            <Card
+              key={`${card.cardId}-${card.rarity}-${card.character}`}
+              card={card}
+              onClick={handleCardClick}
+            />
           ))
         ) : (
           <div>No cards match the selected filters.</div>

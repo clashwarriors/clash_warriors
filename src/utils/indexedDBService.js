@@ -4,135 +4,140 @@ import { openDB } from 'idb'
 const DB_NAME = 'ClashDB'
 const DB_VERSION = 2
 
+// ✅ Global memory caches for ultra-fast reads
+export const memoryCache = {
+  users: new Map(),
+  cards: new Map(),
+  images: new Map(),
+  leaderboard: new Map(),
+  meta: new Map(),
+}
+
+// ----- Initialize DB -----
 export const initDB = async () => {
   return openDB(DB_NAME, DB_VERSION, {
     upgrade(db) {
-      if (!db.objectStoreNames.contains('user')) {
+      if (!db.objectStoreNames.contains('user'))
         db.createObjectStore('user', { keyPath: 'userId' })
-      }
-      if (!db.objectStoreNames.contains('cards')) {
+      if (!db.objectStoreNames.contains('cards'))
         db.createObjectStore('cards', { keyPath: 'cardId' })
-      }
-      if (!db.objectStoreNames.contains('meta')) {
-        db.createObjectStore('meta')
-      }
-      if (!db.objectStoreNames.contains('leaderboard')) {
+      if (!db.objectStoreNames.contains('images'))
+        db.createObjectStore('images') // ✅ added images store
+      if (!db.objectStoreNames.contains('meta')) db.createObjectStore('meta')
+      if (!db.objectStoreNames.contains('leaderboard'))
         db.createObjectStore('leaderboard', { keyPath: 'id' })
-      }
     },
   })
 }
 
-// ----- User Data ----- //
+// ----- User Data -----
 export const storeUserData = async (userData) => {
   const db = await initDB()
   await db.put('user', userData)
+  memoryCache.users.set(userData.userId, userData)
 }
 
-export const getUserData = async () => {
+export const getUserData = async (userId) => {
+  if (memoryCache.users.has(userId)) return memoryCache.users.get(userId)
   const db = await initDB()
-  const users = await db.getAll('user')
-  return users[0] || null
+  const user = userId
+    ? await db.get('user', userId)
+    : (await db.getAll('user'))[0] || null
+  if (user) memoryCache.users.set(user.userId, user)
+  return user
 }
 
-// ----- Cards ----- //
+// ----- Cards -----
 export const storeCards = async (cards) => {
+  if (!cards || !cards.length) return
   const db = await initDB()
   const tx = db.transaction('cards', 'readwrite')
   for (const card of cards) {
     await tx.store.put(card)
+    memoryCache.cards.set(card.cardId, card)
   }
   await tx.done
 }
 
 export const getCards = async () => {
+  if (memoryCache.cards.size > 0) return Array.from(memoryCache.cards.values())
   const db = await initDB()
-  return await db.getAll('cards')
+  const cards = await db.getAll('cards')
+  cards.forEach((c) => memoryCache.cards.set(c.cardId, c))
+  return cards
 }
 
-// ----- Images ----- //
-export const storeImage = async (url, blob) => {
+// ----- Images -----
+export const storeImage = async (url, blobOrBase64) => {
   const db = await initDB()
-  await db.put('images', blob, url)
+  await db.put('images', blobOrBase64, url)
+  memoryCache.images.set(url, blobOrBase64)
 }
 
 export const getImage = async (url) => {
+  if (memoryCache.images.has(url)) return memoryCache.images.get(url)
   const db = await initDB()
-  return await db.get('images', url)
+  const img = await db.get('images', url)
+  if (img) memoryCache.images.set(url, img)
+  return img
 }
 
-// ----- Meta Data (timestamps) ----- //
+// ----- Meta Data -----
 export const setLastUpdate = async (timestamp) => {
   const db = await initDB()
   await db.put('meta', timestamp, 'lastUpdate')
+  memoryCache.meta.set('lastUpdate', timestamp)
 }
 
 export const getLastUpdate = async () => {
+  if (memoryCache.meta.has('lastUpdate'))
+    return memoryCache.meta.get('lastUpdate')
   const db = await initDB()
-  return await db.get('meta', 'lastUpdate')
+  const ts = await db.get('meta', 'lastUpdate')
+  if (ts) memoryCache.meta.set('lastUpdate', ts)
+  return ts
 }
 
-export const setLocalLastOnline = (timestamp) => {
+export const setLocalLastOnline = (timestamp) =>
   localStorage.setItem('lastOnlineTimestamp', timestamp)
-}
+export const getLocalLastOnline = () =>
+  localStorage.getItem('lastOnlineTimestamp')
 
-export const getLocalLastOnline = () => {
-  return localStorage.getItem('lastOnlineTimestamp')
-}
-
-// ----- Wipe ----- //
-export const clearAllData = async () => {
-  const db = await initDB()
-  await db.clear('user')
-  await db.clear('cards')
-  await db.clear('images')
-  await db.clear('meta')
-}
-
-export const getUserFromIndexedDB = (userId) => {
-  return new Promise((resolve, reject) => {
-    const request = window.indexedDB.open('YourDatabaseName', 1) // Replace with your actual IndexedDB database name
-
-    request.onerror = () => {
-      reject('Error opening IndexedDB')
-    }
-
-    request.onsuccess = () => {
-      const db = request.result
-      const transaction = db.transaction(['users'], 'readonly') // Replace 'users' with your object store name
-      const store = transaction.objectStore('users') // Replace with your object store name
-
-      const userRequest = store.get(userId) // Assuming userId is the key in your IndexedDB object store
-
-      userRequest.onerror = () => {
-        reject('Error fetching user from IndexedDB')
-      }
-
-      userRequest.onsuccess = () => {
-        const userData = userRequest.result
-        if (userData) {
-          resolve(userData) // Return the user data
-        } else {
-          reject('User not found in IndexedDB')
-        }
-      }
-    }
-  })
-}
-
-// Store leaderboard data
+// ----- Leaderboard -----
 export const storeLeaderboard = async (list) => {
+  if (!list || !list.length) return
   const db = await initDB()
   const tx = db.transaction('leaderboard', 'readwrite')
-  await tx.objectStore('leaderboard').clear()
+  await tx.store.clear()
   for (const user of list) {
     await tx.store.put(user)
+    memoryCache.leaderboard.set(user.id, user)
   }
   await tx.done
 }
 
-// Fetch leaderboard data
 export const getLeaderboard = async () => {
+  if (memoryCache.leaderboard.size > 0)
+    return Array.from(memoryCache.leaderboard.values())
   const db = await initDB()
-  return await db.getAll('leaderboard')
+  const data = await db.getAll('leaderboard')
+  data.forEach((u) => memoryCache.leaderboard.set(u.id, u))
+  return data
+}
+
+// ----- Clear All Data -----
+export const clearAllData = async () => {
+  const db = await initDB()
+  await Promise.all([
+    db.clear('user'),
+    db.clear('cards'),
+    db.clear('images'),
+    db.clear('meta'),
+    db.clear('leaderboard'),
+  ])
+  memoryCache.users.clear()
+  memoryCache.cards.clear()
+  memoryCache.images.clear()
+  memoryCache.meta.clear()
+  memoryCache.leaderboard.clear()
 }

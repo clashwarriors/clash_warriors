@@ -1,240 +1,121 @@
-import React, { useState, useEffect, lazy, Suspense, useMemo } from 'react'
+import React, { useState, useEffect, Suspense, lazy } from 'react'
 import {
   BrowserRouter as Router,
   Routes,
   Route,
   useLocation,
+  useNavigate,
 } from 'react-router-dom'
 import { TonConnectUIProvider } from '@tonconnect/ui-react'
 import { preloadImagesToIDB } from './utils/imagePreloader'
+import { getUserData } from './utils/indexedDBService'
 import imageList from './assets/imageList.json'
-import { initializeUser } from './utils/firebaseSyncService'
+
+import Dashboard from './components/Dashboard'
+import Footer from './components/Footer'
+import Tournament from './components/Tournament'
+import Premium from './components/Premium'
+import FirebaseImage from './components/new'
 import {
   TrackGroups,
   TwaAnalyticsProvider,
 } from '@tonsolutions/telemetree-react'
 
-// ✅ Lazy loaded pages
-const pages = {
-  Dashboard: lazy(() => import('./components/Dashboard')),
-  Footer: lazy(() => import('./components/Footer')),
-  Tournament: lazy(() => import('./components/Tournament')),
-  Airdrop: lazy(() => import('./components/Airdrop')),
-  Collections: lazy(() => import('./components/Collections')),
-  Friends: lazy(() => import('./components/Friends')),
-  DailyRewards: lazy(() => import('./components/DashComp/Daily/dailyRewards')),
-  DailyMissions: lazy(
-    () => import('./components/DashComp/Daily/dailyMissions')
-  ),
-  BuildDeck: lazy(() => import('./components/tournament/BuildDeck')),
-  Battle: lazy(() => import('./components/tournament/Battle')),
-  LeaderBoard: lazy(() => import('./components/tournament/LeaderBoard')),
-  Settings: lazy(() => import('./components/Settings')),
-  Premium: lazy(() => import('./components/Premium')),
-}
-
-// ==============================
-// Full Screen Loader
-// ==============================
-const FullScreenLoading = () => (
-  <div
-    style={{
-      width: '100vw',
-      height: '100vh',
-      backgroundColor: '#000',
-      position: 'relative',
-    }}
-  >
-    <img
-      src="/loading.png"
-      alt="Loading..."
-      style={{
-        width: '100%',
-        height: '100%',
-        objectFit: 'cover',
-        position: 'absolute',
-        zIndex: 1,
-      }}
-    />
-    <div
-      style={{
-        position: 'absolute',
-        bottom: '50px',
-        left: '50%',
-        transform: 'translateX(-50%)',
-        width: '70%',
-        height: '6px',
-        background: '#444',
-        borderRadius: '5px',
-        overflow: 'hidden',
-        zIndex: 2,
-      }}
-    >
-      <div
-        style={{
-          width: '100%',
-          height: '100%',
-          background: 'linear-gradient(90deg, #00f0ff, #00ff73)',
-          animation: 'railAnimation 2s infinite',
-        }}
-      />
-    </div>
-    <style>{`
-      @keyframes railAnimation {
-        0% { transform: translateX(-100%); }
-        50% { transform: translateX(0%); }
-        100% { transform: translateX(100%); }
-      }
-    `}</style>
-  </div>
+// Lazy load components
+const Airdrop = lazy(() => import('./components/Airdrop'))
+const Collections = lazy(() => import('./components/Collections'))
+const Friends = lazy(() => import('./components/Friends'))
+const DailyRewards = lazy(
+  () => import('./components/DashComp/Daily/dailyRewards')
 )
+const DailyMissions = lazy(
+  () => import('./components/DashComp/Daily/dailyMissions')
+)
+const BuildDeck = lazy(() => import('./components/tournament/BuildDeck'))
+const Battle = lazy(() => import('./components/tournament/Battle'))
+const LeaderBoard = lazy(() => import('./components/tournament/LeaderBoard'))
+const Settings = lazy(() => import('./components/Settings'))
 
-// ==============================
-// Main App Component
-// ==============================
-const App = () => {
+function App() {
   const [user, setUser] = useState(null)
   const [status, setStatus] = useState('Loading... Please wait.')
-  const [ready, setReady] = useState({
-    timer: false,
-    assets: false,
-    data: false,
-  })
+  const [assetsReady, setAssetsReady] = useState(false)
 
-  // 1️⃣ Timer for minimal splash delay
+  // ✅ MOCK USER LOADING FROM INDEXEDDB / FIRESTORE
   useEffect(() => {
-    const timer = setTimeout(
-      () => setReady((prev) => ({ ...prev, timer: true })),
-      2000
-    )
-    return () => clearTimeout(timer)
-  }, [])
-
-  // 2️⃣ Preload images & essential assets
-  useEffect(() => {
-    const preloadAssets = async () => {
+    const MOCK_USER_ID = '6845597761' // your real userId
+    const loadUser = async () => {
       try {
-        await preloadImagesToIDB(imageList) // IndexedDB caching
-        // Preload main loading image
-        const img = new Image()
-        img.src = '/loading.png'
-        await new Promise((res) => {
-          img.onload = res
-          img.onerror = res
-        })
-        setReady((prev) => ({ ...prev, assets: true }))
+        const userData = await getUserData(MOCK_USER_ID) // directly fetch by userId
+        if (userData) {
+          setUser(userData)
+          setStatus('Data loaded from local DB.')
+        } else {
+          setStatus('User not found locally.')
+        }
       } catch (err) {
-        console.error('Asset preload error:', err)
+        console.error('Failed to load user:', err)
+        setStatus('Error loading user data.')
       }
     }
-    preloadAssets()
+
+    loadUser()
   }, [])
 
-  // 3️⃣ Initialize Telegram WebApp + User Session
+  // Coin generator logic
   useEffect(() => {
-    const initTelegram = async () => {
-      try {
-        const tg = window.Telegram?.WebApp
-        if (!tg) {
-          console.warn(
-            'Telegram WebApp not detected — app runs only inside Telegram.'
-          )
-          return
-        }
-
-        // Fullscreen & swipe setup
-        if (window.TelegramWebviewProxy?.postEvent) {
-          window.TelegramWebviewProxy.postEvent(
-            'web_app_setup_back_button',
-            JSON.stringify({ is_visible: true })
-          )
-          window.TelegramWebviewProxy.postEvent(
-            'web_app_request_fullscreen',
-            '{}'
-          )
-          window.TelegramWebviewProxy.postEvent(
-            'web_app_setup_swipe_behavior',
-            JSON.stringify({ allow_vertical_swipe: false })
-          )
-        }
-
-        // Telegram setup
-        tg.ready()
-        tg.expand()
-        tg.disableClosingConfirmation()
-        tg.setHeaderColor('#000000')
-
-        if (tg.BackButton) {
-          tg.BackButton.show()
-          tg.BackButton.onClick(() => {
-            try {
-              window.history.back()
-            } catch {
-              tg.BackButton.hide()
-            }
-          })
-        }
-
-        if (tg.SettingsButton) {
-          tg.SettingsButton.show()
-          tg.SettingsButton.onClick(() => {
-            window.location.href = '/settings'
-          })
-        }
-
-        // Fetch Telegram user
-        const telegramUser = tg.initDataUnsafe?.user
-        if (!telegramUser?.id) {
-          console.warn('⚠️ Telegram user not found.')
-          setStatus('Unable to fetch Telegram user.')
-          return
-        }
-
-        setStatus('Syncing user data...')
-        const { user } = await handleUserSession(telegramUser)
-        setUser(user)
-        localStorage.setItem('userId', user.userId)
-        setReady((prev) => ({ ...prev, data: true }))
-        setStatus('Ready!')
-      } catch (err) {
-        console.error('❌ Telegram init failed:', err)
-        setStatus('Initialization error.')
-      }
+    const handleOnline = () => startCoinGenerator()
+    const handleOffline = () => stopCoinGenerator()
+    window.addEventListener('online', handleOnline)
+    window.addEventListener('offline', handleOffline)
+    return () => {
+      window.removeEventListener('online', handleOnline)
+      window.removeEventListener('offline', handleOffline)
     }
-
-    initTelegram()
   }, [])
 
-  // 4️⃣ Handle User Session
-  const handleUserSession = async (telegramUser) => {
-    try {
-      const userId = telegramUser.id.toString()
-      const result = await initializeUser(userId, telegramUser)
-
-      if (!result?.user) throw new Error('User initialization failed')
-
-      // ✅ Optional: seed free cards if brand-new user
-      if (
-        (result.user.coins || 0) === 1000000 &&
-        (!result.cards || result.cards.length === 0)
-      ) {
-        await seedFreeCards(userId)
-      }
-
-      console.log('✅ User session initialized:', result.user)
-      return result
-    } catch (err) {
-      console.error('❌ User session error:', err)
-      setStatus('User sync failed.')
-      return { user: null, cards: [] }
-    }
+  // Telegram WebApp config (optional, can leave as mock)
+  if (window.Telegram?.WebApp) {
+    const tg = window.Telegram.WebApp
+    tg.setHeaderColor('#000000')
+    tg.BackButton.show()
+    tg.BackButton.onClick(() => {
+      if (window.history.length > 1) window.history.back()
+      else tg.close()
+    })
   }
 
-  const isReady = ready.timer && ready.assets && ready.data
-  const mainContent = useMemo(
-    () => <MainContent user={user} status={status} />,
-    [user, status]
-  )
+  // Preload images
+  useEffect(() => {
+    const loadAssets = async () => {
+      try {
+        await preloadImagesToIDB(imageList)
+        setAssetsReady(true)
+      } catch (error) {
+        console.error('Error preloading assets:', error)
+        setStatus('Error loading assets.')
+      }
+    }
+    loadAssets()
+  }, [])
+
+  if (!user || !assetsReady) {
+    return (
+      <div>
+        <img
+          src="/loading.png"
+          alt="Loading"
+          style={{
+            width: '100%',
+            height: '100%',
+            objectFit: 'contain',
+            position: 'absolute',
+            top: 0,
+          }}
+        />
+      </div>
+    )
+  }
 
   return (
     <TwaAnalyticsProvider
@@ -242,91 +123,93 @@ const App = () => {
       apiKey="7de1cdbb-494c-40df-acd2-ec4d89c97072"
       trackGroup={TrackGroups.MEDIUM}
     >
-      <TonConnectUIProvider manifestUrl="https://play.clashwarriors.tech/tonconnect-manifest.json">
+      <TonConnectUIProvider manifestUrl="https://clashtesting.netlify.app/tonconnect-manifest.json">
         <Router>
-          {!isReady ? (
-            <FullScreenLoading />
-          ) : (
-            <Suspense fallback={<FullScreenLoading />}>{mainContent}</Suspense>
-          )}
+          <Suspense fallback={<div>Loading...</div>}>
+            <MainContent user={user} status={status} />
+          </Suspense>
         </Router>
       </TonConnectUIProvider>
     </TwaAnalyticsProvider>
   )
 }
 
-// ==============================
-// Main Content / Routes
-// ==============================
 const MainContent = React.memo(({ user, status }) => {
   const location = useLocation()
-  const hideFooterRoutes = [
+  const navigate = useNavigate()
+
+  useEffect(() => {
+    const tg = window.Telegram?.WebApp
+    tg?.ready()
+    tg?.SettingsButton.show().onClick(() => navigate('/settings'))
+    return () => tg?.SettingsButton.offClick()
+  }, [navigate])
+
+  const hideFooterPages = [
     '/tournament',
     '/builddeck',
+    '/test-dashboard',
     '/battle',
     '/leaderboard',
-    '/airdrop',
-    '/premium',
+    '/tutorial-battle',
   ]
-  const hideFooter = hideFooterRoutes.some((path) =>
+  const shouldHideFooter = hideFooterPages.some((path) =>
     location.pathname.startsWith(path)
   )
 
   return (
-    <>
+    <div>
       <Routes>
-        <Route
-          path="/"
-          element={<pages.Dashboard user={user} status={status} />}
-        />
+        <Route path="/" element={<Dashboard user={user} status={status} />} />
         <Route
           path="/airdrop"
-          element={<pages.Airdrop user={user} status={status} />}
-        />
-        <Route
-          path="/collections"
-          element={<pages.Collections user={user} status={status} />}
-        />
-        <Route
-          path="/friends"
-          element={<pages.Friends user={user} status={status} />}
-        />
-        <Route
-          path="/tournament"
-          element={<pages.Tournament user={user} status={status} />}
-        />
-        <Route
-          path="/tournament/:code"
-          element={<pages.Tournament user={user} status={status} />}
-        />
-        <Route
-          path="/daily-rewards"
-          element={<pages.DailyRewards user={user} status={status} />}
-        />
-        <Route
-          path="/daily-missions"
-          element={<pages.DailyMissions user={user} status={status} />}
+          element={<Airdrop user={user} status={status} />}
         />
         <Route
           path="/builddeck"
-          element={<pages.BuildDeck user={user} status={status} />}
+          element={<BuildDeck user={user} status={status} />}
+        />
+        <Route
+          path="/collections"
+          element={<Collections user={user} status={status} />}
+        />
+        <Route
+          path="/friends"
+          element={<Friends user={user} status={status} />}
+        />
+        <Route
+          path="/tournament"
+          element={<Tournament user={user} status={status} />}
+        />
+        <Route path="/tournament/:code" element={<Tournament user={user} />} />
+        <Route
+          path="/daily-rewards"
+          element={<DailyRewards user={user} status={status} />}
+        />
+        <Route
+          path="/daily-missions"
+          element={<DailyMissions user={user} status={status} />}
         />
         <Route
           path="/battle/:matchID"
-          element={<pages.Battle user={user} status={status} />}
+          element={<Battle user={user} status={status} />}
         />
         <Route
           path="/leaderboard"
-          element={<pages.LeaderBoard user={user} status={status} />}
+          element={<LeaderBoard user={user} status={status} />}
+        />
+        <Route
+          path="/premium"
+          element={<Premium user={user} status={status} />}
         />
         <Route
           path="/settings"
-          element={<pages.Settings user={user} status={status} />}
+          element={<Settings user={user} status={status} />}
         />
-        <Route path="/premium" element={<pages.Premium user={user} />} />
+        <Route path="/new" element={<FirebaseImage />} />
       </Routes>
-      {!hideFooter && <pages.Footer />}
-    </>
+      {!shouldHideFooter && <Footer />}
+    </div>
   )
 })
 

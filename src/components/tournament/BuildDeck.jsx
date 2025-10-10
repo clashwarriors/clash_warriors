@@ -50,6 +50,8 @@ const BuildDeck = ({ user }) => {
       const tempDefault = []
       const tempAvailable = []
 
+      console.log('✅ Fetched cards from IndexedDB:', cardsData)
+
       cardsData.forEach((card) => {
         const totalStats = Object.values(card.stats || {}).reduce(
           (a, b) => a + b,
@@ -190,7 +192,11 @@ const BuildDeck = ({ user }) => {
           className="selector-toggle"
           onClick={() => setIsOpen((prev) => !prev)}
         >
-          <CachedImage src="/right.png" alt="Toggle" className="selector-toggle-icon" />
+          <CachedImage
+            src="/right.png"
+            alt="Toggle"
+            className="selector-toggle-icon"
+          />
         </button>
         {isOpen && (
           <div className="selector-container" ref={selectorRef}>
@@ -247,7 +253,7 @@ const BuildDeck = ({ user }) => {
                 }}
               >
                 <img
-                  src={card.photo}
+                  src={card.photo || card.image}
                   alt={card.name}
                   className="defaultDeck-image"
                   loading="lazy"
@@ -298,7 +304,7 @@ const BuildDeck = ({ user }) => {
                   className="defaultDeck-card"
                 >
                   <img
-                    src={card.photo}
+                    src={card.photo || card.image}
                     alt={card.name}
                     className="defaultDeck-image"
                     loading="lazy"

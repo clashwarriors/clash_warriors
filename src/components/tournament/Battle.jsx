@@ -77,7 +77,7 @@ const Battle = ({ user }) => {
   const [stepIndex, setStepIndex] = useState(0)
   const [steps, setSteps] = useState([])
 
-  const backend = 'https://cwbackendl.onrender.com'
+  const backend = import.meta.env.VITE_API_BASE_URL
   //const backend = 'http://localhost:3000'
 
   useEffect(() => {

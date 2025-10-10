@@ -1,9 +1,15 @@
-import { useEffect, useState } from 'react'
+// src/components/Tournament.jsx
+import React, {
+  useEffect,
+  useState,
+  useRef,
+  useCallback,
+  Suspense,
+} from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { doc, getDoc } from 'firebase/firestore'
 import { firestoreDB } from '../firebase'
 import axios from 'axios'
-import DefaultDeckModal from './tournament/DefaultDeckModal'
 import './tournament/style/tournament.style.css'
 import { triggerHapticFeedback } from './tournament/utils/haptic'
 import CachedImage from './shared/CachedImage'
@@ -16,293 +22,393 @@ import {
   joinFriendlyQueue,
   cancelFriendlyMatch,
 } from './shared/joinQueue'
-import { listenForMatch } from './shared/matchListner'
+import MatchListner from './shared/matchListner'
 import {
   setupAnimationsDB,
   fetchAbilityFrames,
 } from '../utils/AnimationUtility'
+import { initSocket, disconnectSocket } from '../socketConfig'
+
+// Lazy-load the modal to reduce initial bundle size
+const DefaultDeckModal = React.lazy(
+  () => import('./tournament/DefaultDeckModal')
+)
+
+const backend = 'https://share.clashwarriors.tech'
+
+// ---------- In-memory caches (singletons for the session) ----------
+const inMemory = {
+  indexedUser: null,
+  indexedCards: null,
+  firestoreUser: null,
+}
+
+// Safe wrapper for requestIdleCallback (fallback to setTimeout)
+const runWhenIdle = (fn) => {
+  if ('requestIdleCallback' in window) {
+    requestIdleCallback(fn, { timeout: 2000 })
+  } else {
+    setTimeout(fn, 500)
+  }
+}
+
+// Small helper to avoid duplicate clicks/actions
+const createSafeActionRunner = () => {
+  const ref = { running: false }
+  return async (fn) => {
+    if (ref.running) return
+    ref.running = true
+    try {
+      await fn()
+    } finally {
+      ref.running = false
+    }
+  }
+}
 
 const Tournament = ({ user }) => {
-  // eslint-disable-next-line no-unused-vars
+  const navigate = useNavigate()
   const [userData, setUserData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
-  const [isMatchmaking, setIsMatchmaking] = useState(false)
-  const [isMatchmakingModalOpen, setIsMatchmakingModalOpen] = useState(false)
-  // const [onlineCount, setOnlineCount] = useState(0)
-  const [showDeckErrorModal, setShowDeckErrorModal] = useState(false)
-  // const [soundEnabled, setSoundEnabled] = useState(
-  //   JSON.parse(localStorage.getItem('soundEnabled')) ?? true
-  // )
+  const [activeModal, setActiveModal] = useState(null) // 'battle' | 'friendly' | 'matchmaking' | null
   const [alertMessage, setAlertMessage] = useState(null)
-  const navigate = useNavigate()
   const [code, setCode] = useState('')
   const [friendUsername, setFriendUsername] = useState('')
   const [friendlyChallenge, setFriendlyChallenge] = useState(null)
-  const [isBattleModeOpen, setIsBattleModeOpen] = useState(false) // Main battle mode modal
-  const [isFriendlyModalOpen, setIsFriendlyModalOpen] = useState(false) // Friendly challenge modal
-  const [activeModal, setActiveModal] = useState(null) // 'battle', 'friendly', null
-  const backend = 'https://share.clashwarriors.tech'
+  const [showDeckErrorModal, setShowDeckErrorModal] = useState(false)
+  const [isMatchmaking, setIsMatchmaking] = useState(false)
+  const [matchData, setMatchData] = useState(null)
+
   const { code: urlCode } = useParams()
+  // Safe action runner refs to prevent double runs
+  const runSafe = useRef(createSafeActionRunner()).current
+
+  // ---------- CACHED getters (use in handlers to avoid repeated IDB reads) ----------
+  const getCachedUserFromIDB = useCallback(async () => {
+    if (inMemory.indexedUser) return inMemory.indexedUser
+    try {
+      const u = await getUserData()
+      inMemory.indexedUser = u
+      return u
+    } catch (err) {
+      console.warn('Failed to read cached user:', err)
+      return null
+    }
+  }, [])
+
+  const getCachedCardsFromIDB = useCallback(async () => {
+    if (inMemory.indexedCards) return inMemory.indexedCards
+    try {
+      const c = await getCards()
+      inMemory.indexedCards = c
+      return c
+    } catch (err) {
+      console.warn('Failed to read cached cards:', err)
+      return []
+    }
+  }, [])
 
   useEffect(() => {
-    if (user?.userId) {
+    if (!user?.userId) return
+
+    const socket = initSocket(user.userId, (data) => {
+      setMatchData(data)
+      navigate(`/battle/${data.matchId}`)
+    })
+
+    return () => disconnectSocket()
+  }, [user, navigate])
+
+  // ---------- Firestore user doc fetch — cached in-memory to avoid repeated reads ----------
+  const fetchFirestoreUserDoc = useCallback(async (uid) => {
+    if (!uid) return null
+    if (inMemory.firestoreUser && inMemory.firestoreUser._uid === uid) {
+      return inMemory.firestoreUser.data
+    }
+    try {
+      const userRef = doc(firestoreDB, 'users', uid)
+      const snap = await getDoc(userRef)
+      const data = snap.exists() ? snap.data() : null
+      inMemory.firestoreUser = { _uid: uid, data }
+      return data
+    } catch (err) {
+      console.error('Error fetching user doc:', err)
+      return null
+    }
+  }, [])
+
+  // ---------- Component mount: preload animations in idle, fetch user doc ----------
+  useEffect(() => {
+    let mounted = true
+    const init = async () => {
+      if (!user?.userId) {
+        setLoading(false)
+        return
+      }
+
       setLoading(true)
-      setupAnimationsDB()
-      fetchAbilityFrames()
 
-      const userDocRef = doc(firestoreDB, 'users', user.userId) // Firestore doc reference
+      // Firestore user fetch (fast, cached)
+      try {
+        const data = await fetchFirestoreUserDoc(user.userId)
+        if (mounted) setUserData(data)
+      } catch (err) {
+        console.error('User fetch error:', err)
+        if (mounted) setError('Failed to fetch user details')
+      } finally {
+        if (mounted) setLoading(false)
+      }
 
-      getDoc(userDocRef)
-        .then((docSnap) => {
-          if (docSnap.exists()) {
-            setUserData(docSnap.data())
-          } else {
-            console.warn('⚠️ User data not found in Firestore')
-            setUserData(null)
-          }
-        })
-        .catch((err) => {
-          console.error('❌ Error fetching user details:', err)
-          setError('Failed to fetch user details')
-        })
-        .finally(() => {
-          setLoading(false)
-        })
+      // Preload heavy assets when idle (will not block the UI)
+      runWhenIdle(async () => {
+        try {
+          await setupAnimationsDB()
+          // dont await fetchAbilityFrames fully if it's heavy — prefetch but allow other UI
+          await fetchAbilityFrames()
+        } catch (err) {
+          console.warn('Animation preload error:', err)
+        }
+      })
     }
-  }, [user])
 
+    init()
+    return () => {
+      mounted = false
+    }
+  }, [user?.userId, fetchFirestoreUserDoc])
+
+  // ---------- Handle url code param (join friendly if present) ----------
   useEffect(() => {
-    console.log('URL code from params:', urlCode)
-
-    if (urlCode && urlCode.length === 6 && userData) {
-      console.log('Valid code and userData found. Joining friendly match...')
-      setCode(urlCode) // fill input with URL code
-      handleJoinFriendlyMatch(urlCode)
-    } else {
-      console.log('Either URL code is invalid or userData not ready yet.')
+    if (!urlCode) return
+    // Wait until we have at least tried to fetch firestore user
+    if (!userData && loading) return
+    // If userData available (or not required), try to join
+    if (urlCode?.length === 6) {
+      // run safe to avoid race
+      runSafe(async () => {
+        await handleJoinFriendlyMatch(urlCode)
+      })
     }
-  }, [urlCode, userData])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [urlCode, userData, loading])
 
-  const handleOpenModal = () => {
+  // ---------- Handlers (fast, stable) ----------
+  const handleOpenModal = useCallback(() => {
+    triggerHapticFeedback()
     setIsModalOpen(true)
-    triggerHapticFeedback()
-  }
+  }, [])
 
-  const handleBack = () => {
+  const handleBack = useCallback(() => {
+    triggerHapticFeedback()
     navigate('/')
-    triggerHapticFeedback()
-  }
+  }, [navigate])
 
-  const noCardsError = () => {
+  const noCardsError = useCallback(() => {
     triggerHapticFeedback()
     setShowDeckErrorModal(false)
     navigate('/builddeck')
-  }
+  }, [navigate])
 
-  const handlePlayNow = () => {
-    triggerHapticFeedback()
-    const savedChallenge = localStorage.getItem('friendlyChallenge')
-    if (savedChallenge) {
-      const challengeData = JSON.parse(savedChallenge)
-      setFriendlyChallenge(challengeData)
-      setActiveModal('friendly') // open friendly modal
-    } else {
-      setFriendlyChallenge(null)
-      setActiveModal('battle') // open battle modal
-    }
-  }
-
-  // Close functions
-  const closeBattleMode = () => setIsBattleModeOpen(false)
-  const closeFriendlyModal = () => setIsFriendlyModalOpen(false)
-
-  const handleMultiplayerBattle = async () => {
+  const handlePlayNow = useCallback(() => {
     triggerHapticFeedback()
     try {
-      const userData = await getUserData()
-      if (!userData) return setAlertMessage('User data not found!')
-
-      // Get all cards from IndexedDB
-      const cards = await getCards()
-      const defaultDeckCards = cards.filter((card) => card.defaultDeck)
-      if (defaultDeckCards.length !== 10) {
-        return setAlertMessage(
-          'You must have exactly 10 cards in your default deck!'
-        )
-      }
-
-      // Check tutorial
-      const tutorialCompleted =
-        localStorage.getItem('tutorialCompleted') === 'true'
-      const isTutorial = !tutorialCompleted
-
-      const queueFunction = isTutorial ? joinTutorialQueue : joinQueue
-      const added = await queueFunction(userData)
-      if (!added) return
-
-      setIsMatchmaking(true)
-      setIsMatchmakingModalOpen(true)
-      setActiveModal('matchmaking')
-
-      listenForMatch(userData.userId, navigate, isTutorial)
-    } catch (error) {
-      console.error(error)
-      setAlertMessage('Something went wrong. Please try again!')
-    }
-  }
-
-  // When creating a friendly challenge
-  const handleFriendlyChallenge = async () => {
-    triggerHapticFeedback()
-
-    const freshUserData = await getUserData()
-    if (!freshUserData) return setAlertMessage('User data not found!')
-
-    try {
-      // Fetch all user cards
-      const cards = await getCards()
-      const defaultDeckCards = cards.filter((card) => card.defaultDeck)
-
-      // Check if exactly 10 cards are selected
-      if (defaultDeckCards.length !== 10) {
-        return setAlertMessage(
-          'You must have exactly 10 cards in your default deck to create a friendly challenge!'
-        )
-      }
-
-      // Proceed to create the friendly challenge
-      const result = await createFriendlyMatch(freshUserData)
-
-      if (result.success) {
-        const challengeData = {
-          code: result.uniqueId,
-          playerId: freshUserData.userId,
-          createdAt: Date.now(),
-        }
-
-        setFriendlyChallenge(challengeData)
-        localStorage.setItem('friendlyChallenge', JSON.stringify(challengeData))
-        listenForMatch(freshUserData.userId, navigate)
+      const saved = localStorage.getItem('friendlyChallenge')
+      if (saved) {
+        const chal = JSON.parse(saved)
+        setFriendlyChallenge(chal)
         setActiveModal('friendly')
       } else {
-        console.log('Failed to create friendly match. Try again.')
+        setFriendlyChallenge(null)
+        setActiveModal('battle')
       }
     } catch (err) {
-      console.error('Error creating friendly match:', err)
+      console.warn('handlePlayNow parse error', err)
+      setActiveModal('battle')
     }
-  }
+  }, [])
 
-  // Define this function inside your Tournament component
-  const handleJoinFriendlyMatch = async (joinCode) => {
-    triggerHapticFeedback()
-    const joinCodeToUse = joinCode || code
-    if (!joinCodeToUse || joinCodeToUse.length !== 6) return
+  const handleMultiplayerBattle = useCallback(
+    async (ev) => {
+      // run via safe runner to avoid multi-clicks
+      await runSafe(async () => {
+        triggerHapticFeedback()
+        try {
+          const idbUser = await getCachedUserFromIDB()
+          if (!idbUser) {
+            setAlertMessage('User data not found!')
+            return
+          }
 
-    const freshUserData = await getUserData()
-    if (!freshUserData) {
-      setAlertMessage('User data not loaded yet!')
-      return
-    }
+          // cached cards
+          const cards = await getCachedCardsFromIDB()
+          const defaultDeckCards = (cards || []).filter((c) => c.defaultDeck)
+          if (defaultDeckCards.length !== 10) {
+            setAlertMessage(
+              'You must have exactly 10 cards in your default deck!'
+            )
+            return
+          }
 
-    try {
-      // Fetch all user cards
-      const cards = await getCards()
-      const defaultDeckCards = cards.filter((card) => card.defaultDeck)
+          const tutorialCompleted =
+            localStorage.getItem('tutorialCompleted') === 'true'
+          const queueFunction = tutorialCompleted
+            ? joinQueue
+            : joinTutorialQueue
+          const added = await queueFunction(idbUser)
+          if (!added) return
 
-      // Validate default deck
-      if (defaultDeckCards.length !== 10) {
-        return setAlertMessage(
-          'You must have exactly 10 cards in your default deck to join a friendly match!'
-        )
-      }
-
-      // Proceed to join the friendly queue
-      const result = await joinFriendlyQueue(freshUserData, joinCodeToUse)
-      if (result.success) {
-        console.log('Joined friendly match:', joinCodeToUse)
-
-        const challengeData = {
-          code: joinCodeToUse,
-          playerId: freshUserData.userId,
-          createdAt: Date.now(),
+          setIsMatchmaking(true)
+          setActiveModal('matchmaking')
+        } catch (err) {
+          console.error('handleMultiplayerBattle error', err)
+          setAlertMessage('Something went wrong. Please try again!')
         }
-        setFriendlyChallenge(challengeData)
-        listenForMatch(freshUserData.userId, navigate)
-        setActiveModal('friendly')
-      } else {
-        setAlertMessage('Invalid code or match already full!')
-      }
-    } catch (err) {
-      console.error('Error joining friendly match:', err)
-      setAlertMessage('Something went wrong. Try again!')
-    }
-  }
-
-  const sendChallenge = async () => {
-    triggerHapticFeedback()
-    if (!friendUsername) {
-      alert("Enter your friend's username first!")
-      return
-    }
-
-    if (!friendlyChallenge) {
-      alert('Create a friendly match first!')
-      return
-    }
-
-    try {
-      const res = await axios.post(`${backend}/send-invite`, {
-        fromUser: user.userId,
-        toUsername: friendUsername,
-        matchCode: friendlyChallenge.code,
       })
+    },
+    [getCachedUserFromIDB, getCachedCardsFromIDB, navigate, runSafe]
+  )
 
-      if (res.data.success) {
-        alert(`✅ Challenge sent to ${friendUsername}`)
-      } else {
-        alert(`❌ Failed: ${res.data.error}`)
+  const handleFriendlyChallenge = useCallback(
+    async (ev) => {
+      await runSafe(async () => {
+        triggerHapticFeedback()
+        try {
+          const idbUser = await getCachedUserFromIDB()
+          if (!idbUser) return setAlertMessage('User data not found!')
+
+          const cards = await getCachedCardsFromIDB()
+          const defaultDeckCards = (cards || []).filter((c) => c.defaultDeck)
+          if (defaultDeckCards.length !== 10) {
+            setAlertMessage(
+              'You must have exactly 10 cards in your default deck!'
+            )
+            return
+          }
+
+          const result = await createFriendlyMatch(idbUser)
+          if (result?.success) {
+            const challengeData = {
+              code: result.uniqueId,
+              playerId: idbUser.userId,
+              createdAt: Date.now(),
+            }
+            localStorage.setItem(
+              'friendlyChallenge',
+              JSON.stringify(challengeData)
+            )
+            setFriendlyChallenge(challengeData)
+            setActiveModal('friendly')
+          } else {
+            setAlertMessage('Failed to create friendly match')
+          }
+        } catch (err) {
+          console.error('handleFriendlyChallenge error', err)
+          setAlertMessage('Something went wrong. Try again!')
+        }
+      })
+    },
+    [getCachedUserFromIDB, getCachedCardsFromIDB, navigate, runSafe]
+  )
+
+  const handleJoinFriendlyMatch = useCallback(
+    async (joinCodeParam) => {
+      await runSafe(async () => {
+        triggerHapticFeedback()
+        const joinCodeToUse = (joinCodeParam || code || '').toUpperCase()
+        if (!joinCodeToUse || joinCodeToUse.length !== 6) return
+
+        const idbUser = await getCachedUserFromIDB()
+        if (!idbUser) {
+          setAlertMessage('User data not loaded yet!')
+          return
+        }
+
+        const cards = await getCachedCardsFromIDB()
+        const defaultDeckCards = (cards || []).filter((c) => c.defaultDeck)
+        if (defaultDeckCards.length !== 10) {
+          setAlertMessage(
+            'You must have exactly 10 cards in your default deck!'
+          )
+          return
+        }
+
+        try {
+          const result = await joinFriendlyQueue(idbUser, joinCodeToUse)
+          if (result?.success) {
+            const challengeData = {
+              code: joinCodeToUse,
+              playerId: idbUser.userId,
+              createdAt: Date.now(),
+            }
+            setFriendlyChallenge(challengeData)
+            setActiveModal('friendly')
+          } else {
+            setAlertMessage('Invalid code or match already full!')
+          }
+        } catch (err) {
+          console.error('handleJoinFriendlyMatch error', err)
+          setAlertMessage('Something went wrong. Try again!')
+        }
+      })
+    },
+    [code, getCachedUserFromIDB, getCachedCardsFromIDB, navigate, runSafe]
+  )
+
+  const sendChallenge = useCallback(async () => {
+    await runSafe(async () => {
+      triggerHapticFeedback()
+      const idbUser = await getCachedUserFromIDB()
+      if (!friendUsername) {
+        alert("Enter your friend's username first!")
+        return
       }
-    } catch (err) {
-      console.error('Send challenge error:', err)
-      alert('Something went wrong while sending challenge')
-    }
-  }
+      if (!friendlyChallenge) {
+        alert('Create a friendly match first!')
+        return
+      }
+      try {
+        const res = await axios.post(`${backend}/send-invite`, {
+          fromUser: idbUser?.userId ?? user?.userId,
+          toUsername: friendUsername,
+          matchCode: friendlyChallenge.code,
+        })
+        if (res.data?.success) alert(`✅ Challenge sent to ${friendUsername}`)
+        else alert(`❌ Failed: ${res.data?.error || 'unknown'}`)
+      } catch (err) {
+        console.error('Send challenge error:', err)
+        alert('Something went wrong while sending challenge')
+      }
+    })
+  }, [friendUsername, friendlyChallenge, getCachedUserFromIDB, runSafe, user])
 
-  // To cancel friendly challenge
-  const handleCancelFriendlyChallenge = async () => {
-    triggerHapticFeedback()
-    if (friendlyChallenge) {
-      // Remove from DB
-      await cancelFriendlyMatch(user.userId, friendlyChallenge.code)
+  const handleCancelFriendlyChallenge = useCallback(async () => {
+    await runSafe(async () => {
+      triggerHapticFeedback()
+      const idbUser = await getCachedUserFromIDB()
+      if (friendlyChallenge && idbUser) {
+        await cancelFriendlyMatch(idbUser.userId, friendlyChallenge.code)
+        setFriendlyChallenge(null)
+        setFriendUsername('')
+        localStorage.removeItem('friendlyChallenge')
+        setActiveModal(null)
+      }
+    })
+  }, [friendlyChallenge, getCachedUserFromIDB, runSafe])
 
-      // Clear local state
-      setFriendlyChallenge(null)
-      setFriendUsername('')
-      localStorage.removeItem('friendlyChallenge')
-
-      // Go back to battle modal
-      setActiveModal(null)
-    }
-  }
-
-  const handleCancel = async () => {
-    triggerHapticFeedback()
-    try {
-      const userData = await getUserData()
-      if (!userData) return setAlertMessage('User data not found!')
-
-      const removed = await leaveQueue(userData.userId)
-      if (!removed) return
-
+  const handleCancelMatchmaking = useCallback(async () => {
+    await runSafe(async () => {
+      triggerHapticFeedback()
+      const idbUser = await getCachedUserFromIDB()
+      if (!idbUser) return
+      await leaveQueue(idbUser.userId)
       setIsMatchmaking(false)
       setActiveModal(null)
-    } catch (error) {
-      console.error(error)
-    }
-  }
+    })
+  }, [getCachedUserFromIDB, runSafe])
 
+  // ---------- Render ----------
   if (error) return <h2></h2>
 
   return (
@@ -376,11 +482,16 @@ const Tournament = ({ user }) => {
         )}
       </div>
 
-      <DefaultDeckModal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        user={user}
-      />
+      {/* DefaultDeckModal (lazy) */}
+      <Suspense fallback={null}>
+        {isModalOpen && (
+          <DefaultDeckModal
+            isOpen={isModalOpen}
+            onClose={() => setIsModalOpen(false)}
+            user={user}
+          />
+        )}
+      </Suspense>
 
       {/* Main Battle Modal */}
       {activeModal === 'battle' && (
@@ -430,16 +541,15 @@ const Tournament = ({ user }) => {
                 ✔
               </button>
             </div>
-            <div>
-              {alertMessage && (
-                <div className="battle-code-alert-message">{alertMessage}</div>
-              )}
-            </div>
+
+            {alertMessage && (
+              <div className="battle-code-alert-message">{alertMessage}</div>
+            )}
           </div>
         </div>
       )}
 
-      {/* Friendly Challenge Modal */}
+      {/* Friendly Modal */}
       {activeModal === 'friendly' && friendlyChallenge && (
         <div
           className="friendly-modal-overlay"
@@ -451,7 +561,6 @@ const Tournament = ({ user }) => {
           >
             <h2>Friendly Challenge Created</h2>
 
-            {/* Code Input */}
             <div className="friendly-code-wrapper">
               <input
                 type="text"
@@ -469,7 +578,6 @@ const Tournament = ({ user }) => {
               </button>
             </div>
 
-            {/* Link Input */}
             <div
               className="friendly-link-wrapper"
               style={{ marginTop: '10px' }}
@@ -492,7 +600,6 @@ const Tournament = ({ user }) => {
               </button>
             </div>
 
-            {/* Friend Username */}
             <input
               type="text"
               placeholder="Enter friend's username"
@@ -502,7 +609,6 @@ const Tournament = ({ user }) => {
               style={{ marginTop: '10px' }}
             />
 
-            {/* Buttons */}
             <button className="friendly-send-btn" onClick={sendChallenge}>
               Send Challenge
             </button>
@@ -516,13 +622,14 @@ const Tournament = ({ user }) => {
         </div>
       )}
 
+      {/* Matchmaking Modal */}
       {activeModal === 'matchmaking' && (
         <div className="tournamentHome-modal">
           <div className="tournamentHome-modal-content">
             <CachedImage
               src="/new/tournament/cancel2.png"
               className="tournamentHome-cancel-button"
-              onClick={handleCancel}
+              onClick={handleCancelMatchmaking}
               alt="Cancel Button"
             />
           </div>

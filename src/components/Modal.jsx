@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react'
+import React, { useState, useEffect, useRef, useCallback, memo } from 'react'
 import './style/modal.css'
 import CachedImage from './Shared/CachedImage'
 import {
@@ -17,7 +17,6 @@ const xpMap = {
   mythical: 50,
   legendary: 75,
 }
-
 const pphMap = {
   common: 150,
   uncommon: 500,
@@ -26,12 +25,51 @@ const pphMap = {
   legendary: 1200,
 }
 
-const Modal = React.memo(({ user, isOpen, onClose, cardId, category }) => {
+// Memoized stats row
+const StatsRow = memo(({ stats, icons }) => (
+  <div className="new-modal-stats-row">
+    {icons.map(({ src, key }) => (
+      <div key={key}>
+        <CachedImage src={src} /> {stats?.[key] ?? '-'}
+      </div>
+    ))}
+  </div>
+))
+
+const Modal = memo(({ user, isOpen, onClose, cardId, category }) => {
   const [cardDetails, setCardDetails] = useState(null)
   const [isCardPurchased, setIsCardPurchased] = useState(false)
   const modalContentRef = useRef(null)
 
-  // Fetch card details from IndexedDB only
+  // Fetch master cards once ever
+  const fetchMasterCards = useCallback(async () => {
+    if (!window.__ALL_CARDS__) {
+      const stored = localStorage.getItem('masterCardUpdateV1')
+      if (stored) {
+        const parsed = JSON.parse(stored)
+        window.__ALL_CARDS__ = Array.isArray(parsed)
+          ? parsed
+          : (parsed.cards ?? [])
+      } else {
+        try {
+          const BACKEND_URL = import.meta.env.VITE_API_BASE_URL
+          const res = await fetch(`${BACKEND_URL}/api/cards`)
+          const data = await res.json()
+          window.__ALL_CARDS__ = Array.isArray(data) ? data : (data.cards ?? [])
+          localStorage.setItem(
+            'masterCardUpdateV1',
+            JSON.stringify(window.__ALL_CARDS__)
+          )
+        } catch (err) {
+          console.error('❌ Failed to fetch master cards:', err)
+          window.__ALL_CARDS__ = []
+        }
+      }
+    }
+    return window.__ALL_CARDS__
+  }, [])
+
+  // Fetch card details
   useEffect(() => {
     if (!isOpen || !cardId) return
 
@@ -39,44 +77,33 @@ const Modal = React.memo(({ user, isOpen, onClose, cardId, category }) => {
     setIsCardPurchased(false)
 
     const fetchCard = async () => {
-      const userCards = await getCards() // all cards user owns
+      const userCards = await getCards()
       let localCard = userCards.find((c) => c.cardId === cardId)
+      const masterSynced = localStorage.getItem('masterCardUpdateV1')
 
-      // Determine if card is purchased
-      const purchased = !!localCard
-
-      // Fetch master JSON to get latest image / data
-      try {
-        const BACKEND_URL = import.meta.env.VITE_API_BASE_URL
-        const res = await fetch(`${BACKEND_URL}/api/cards`)
-        const allCards = await res.json()
+      // Only sync once ever
+      if (!masterSynced) {
+        const allCards = await fetchMasterCards()
         const jsonCard = allCards.find((c) => c.cardId === cardId)
-
         if (jsonCard) {
-          if (localCard) {
-            // Update image if changed
-            if (localCard.photo !== jsonCard.image) {
-              localCard.photo = jsonCard.image
-              await storeCards([localCard])
-            }
-          } else {
-            localCard = { ...jsonCard }
-          }
+          localCard = localCard
+            ? { ...localCard, ...jsonCard }
+            : { ...jsonCard }
+          await storeCards([localCard])
         }
-      } catch (err) {
-        console.error('❌ Failed to fetch card from JSON backend:', err)
+        localStorage.setItem(
+          'masterCardUpdateV1',
+          JSON.stringify(window.__ALL_CARDS__)
+        )
       }
 
-      if (localCard) {
-        setCardDetails(localCard)
-        setIsCardPurchased(purchased) // only true if user actually owns it
-      }
+      if (localCard) setCardDetails(localCard)
     }
 
     fetchCard()
-  }, [isOpen, cardId])
+  }, [isOpen, cardId, fetchMasterCards])
 
-  // Click outside modal to close
+  // Close modal on outside click
   useEffect(() => {
     const handleClickOutside = (e) => {
       triggerHapticFeedback('medium')
@@ -87,26 +114,20 @@ const Modal = React.memo(({ user, isOpen, onClose, cardId, category }) => {
         onClose()
       }
     }
-
     if (isOpen) {
       document.addEventListener('mousedown', handleClickOutside)
       return () => document.removeEventListener('mousedown', handleClickOutside)
     }
   }, [isOpen, onClose])
 
+  // Purchase card
   const purchaseCard = useCallback(async () => {
     if (!user?.userId || !cardDetails) return
-
     triggerHapticFeedback('medium')
 
     try {
       const userData = await getUserData()
-      const currentCoins = userData.coins || 0
-      const xp = userData.xp || 0
-      const pph = userData.pph || 0
-      const price = cardDetails.price || 0
-
-      if (currentCoins < price) {
+      if ((userData.coins || 0) < (cardDetails.price || 0)) {
         alert('Not enough coins!')
         return
       }
@@ -117,28 +138,37 @@ const Modal = React.memo(({ user, isOpen, onClose, cardId, category }) => {
         description: cardDetails.description,
         photo: cardDetails.image,
         stats: cardDetails.stats,
-        price,
+        price: cardDetails.price,
+        syncedWithMaster: true,
       }
 
       await storeCards([cardData])
-
       const updatedUserData = {
         ...userData,
-        coins: currentCoins - price,
-        xp: xp + (xpMap[category] || 0),
-        pph: pph + (pphMap[category] || 0),
+        coins: userData.coins - cardDetails.price,
+        xp: (userData.xp || 0) + (xpMap[category] || 0),
+        pph: (userData.pph || 0) + (pphMap[category] || 0),
       }
 
       await storeUserData(updatedUserData)
       setIsCardPurchased(true)
       await syncUser(updatedUserData)
-      console.log('Card purchased and stored in IndexedDB:', cardData)
-    } catch (error) {
-      console.error('❌ Error purchasing card:', error)
+      console.log('Card purchased:', cardData)
+    } catch (err) {
+      console.error('❌ Error purchasing card:', err)
     }
   }, [user?.userId, cardDetails, cardId, category])
 
   if (!isOpen) return null
+
+  const statsIcons = [
+    { key: 'attack', src: '/new/collectionpage/stats/attack.png' },
+    { key: 'armor', src: '/new/collectionpage/stats/armour.png' },
+    { key: 'vitality', src: '/new/collectionpage/stats/vitality.png' },
+    { key: 'agility', src: '/new/collectionpage/stats/agility.png' },
+    { key: 'intelligence', src: '/new/collectionpage/stats/intelligence.png' },
+    { key: 'powers', src: '/new/collectionpage/stats/power.png' },
+  ]
 
   return (
     <div className="new-modal">
@@ -146,7 +176,7 @@ const Modal = React.memo(({ user, isOpen, onClose, cardId, category }) => {
         <div className="new-modal-body">
           <div className={`new-modal-card-frame modal-rarity-${category}`}>
             <img
-              src={cardDetails?.image ?? cardDetails?.photo ?? '/fallback.png'} // remove fallback to photo
+              src={cardDetails?.image ?? cardDetails?.photo ?? '/fallback.png'}
               alt={cardDetails?.name || 'Card Image'}
               className="new-modal-card-image"
             />
@@ -160,61 +190,37 @@ const Modal = React.memo(({ user, isOpen, onClose, cardId, category }) => {
               {cardDetails?.description || 'No description.'}
             </p>
 
-            <div className="new-modal-stats-row">
-              <div>
-                <CachedImage src="/new/collectionpage/stats/attack.png" />{' '}
-                {cardDetails?.stats?.attack ?? '-'}
-              </div>
-              <div>
-                <CachedImage src="/new/collectionpage/stats/armour.png" />{' '}
-                {cardDetails?.stats?.armor ?? '-'}
-              </div>
-              <div>
-                <CachedImage src="/new/collectionpage/stats/vitality.png" />{' '}
-                {cardDetails?.stats?.vitality ?? '-'}
-              </div>
-            </div>
+            <StatsRow
+              stats={cardDetails?.stats}
+              icons={statsIcons.slice(0, 3)}
+            />
+            <StatsRow
+              stats={cardDetails?.stats}
+              icons={statsIcons.slice(3, 6)}
+            />
 
-            <div className="new-modal-stats-row">
-              <div>
-                <CachedImage src="/new/collectionpage/stats/agility.png" />{' '}
-                {cardDetails?.stats?.agility ?? '-'}
+            {!isCardPurchased && (
+              <div className="new-modal-price-buy">
+                <div className="price-display">
+                  <CachedImage
+                    src="/new/coins.png"
+                    alt="Coins"
+                    style={{ width: 20, height: 20, marginRight: 5 }}
+                  />
+                  {cardDetails?.price ?? 0}
+                </div>
+                <button
+                  className="new-modal-purchase-btn"
+                  onClick={purchaseCard}
+                >
+                  <CachedImage
+                    src="/new/collectionpage/stats/buy-button.png"
+                    alt="BUY"
+                    className="buy-image"
+                  />
+                </button>
               </div>
-              <div>
-                <CachedImage src="/new/collectionpage/stats/intelligence.png" />{' '}
-                {cardDetails?.stats?.intelligence ?? '-'}
-              </div>
-              <div>
-                <CachedImage src="/new/collectionpage/stats/power.png" />{' '}
-                {cardDetails?.stats?.powers ?? '-'}
-              </div>
-            </div>
-
-            <div className="new-modal-price-buy">
-              {!isCardPurchased && (
-                <>
-                  <div className="price-display">
-                    <CachedImage
-                      src="/new/coins.png"
-                      alt="Coins"
-                      style={{ width: 20, height: 20, marginRight: 5 }}
-                    />{' '}
-                    {cardDetails?.price ?? 0}
-                  </div>
-
-                  <button
-                    className="new-modal-purchase-btn"
-                    onClick={purchaseCard}
-                  >
-                    <CachedImage
-                      src="/new/collectionpage/stats/buy-button.png"
-                      alt="BUY"
-                      className="buy-image"
-                    />
-                  </button>
-                </>
-              )}
-            </div>
+            )}
           </div>
         </div>
       </div>

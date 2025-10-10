@@ -1,4 +1,4 @@
-// 🔹 Utility: Blob -> Base64
+// 🔹 Utility: Blob -> Base64 (only convert when needed)
 const blobToBase64 = (blob) =>
   new Promise((resolve, reject) => {
     const reader = new FileReader()
@@ -7,11 +7,11 @@ const blobToBase64 = (blob) =>
     reader.readAsDataURL(blob)
   })
 
-// 🔹 Global memory cache
-const animationMemoryCache = new Map() // stores {name -> base64[]}
+// 🔹 Global memory cache (store blobs, convert to base64 on render)
+const animationMemoryCache = new Map() // { abilityName -> Blob[] }
 
 // ----------------------------------------------------
-// MAIN FUNCTION: Cache all animations into IndexedDB + Memory (base64 only)
+// MAIN FUNCTION: Cache all animations into IndexedDB + Memory
 // ----------------------------------------------------
 export const setupAnimationsDB = async () => {
   return new Promise((resolve, reject) => {
@@ -43,11 +43,9 @@ export const setupAnimationsDB = async () => {
     request.onsuccess = async (event) => {
       const db = event.target.result
 
-      // Already cached → load memory
+      // Already cached? Load memory from IndexedDB
       if (localStorage.getItem('animationsCached') === 'true') {
-        console.log(
-          '✅ Animations already cached, loading from IndexedDB to memory...'
-        )
+        console.log('✅ Animations already cached, loading memory...')
         for (const storeName of db.objectStoreNames) {
           const tx = db.transaction(storeName, 'readonly')
           const store = tx.objectStore(storeName)
@@ -55,7 +53,7 @@ export const setupAnimationsDB = async () => {
           allReq.onsuccess = () => {
             animationMemoryCache.set(
               storeName,
-              allReq.result.map((f) => f.dataUrl)
+              allReq.result.map((f) => f.blob || f.dataUrl) // fallback
             )
           }
         }
@@ -125,45 +123,45 @@ export const setupAnimationsDB = async () => {
       const BATCH_SIZE = 10
 
       for (const [storeName, info] of Object.entries(animationMap)) {
-        const tasks = []
-        for (let i = 1; i <= info.frames; i++) {
-          const fileName = `${info.baseName}${String(i).padStart(3, '0')}.png`
-          const filePath = `/animations/${info.folder}/${fileName}`
-          tasks.push(
-            fetch(filePath)
-              .then((res) => {
-                if (!res.ok) throw new Error(`File not found: ${filePath}`)
-                return res.blob()
-              })
-              .then(blobToBase64)
-              .then((base64) => ({ id: fileName, dataUrl: base64 }))
-              .catch((err) => {
-                console.warn(`❌ Skipping ${fileName}: ${err.message}`)
-                return null
-              })
-          )
-        }
+        if (!animationMemoryCache.has(storeName))
+          animationMemoryCache.set(storeName, [])
+        const framesArray = animationMemoryCache.get(storeName)
 
-        for (let j = 0; j < tasks.length; j += BATCH_SIZE) {
-          const batch = tasks.slice(j, j + BATCH_SIZE)
-          const results = await Promise.all(batch)
-          const validResults = results.filter(Boolean)
-
-          if (validResults.length > 0) {
-            const tx = db.transaction(storeName, 'readwrite')
-            const store = tx.objectStore(storeName)
-            validResults.forEach((item) => store.put(item))
-            await new Promise((r) => (tx.oncomplete = r))
+        for (let i = 1; i <= info.frames; i += BATCH_SIZE) {
+          const batchPromises = []
+          for (let j = 0; j < BATCH_SIZE && i + j <= info.frames; j++) {
+            const idx = i + j
+            const fileName = `${info.baseName}${String(idx).padStart(3, '0')}.png`
+            const filePath = `/animations/${info.folder}/${fileName}`
+            batchPromises.push(
+              fetch(filePath)
+                .then((res) => {
+                  if (!res.ok) throw new Error(`File not found: ${filePath}`)
+                  return res.blob()
+                })
+                .catch((err) => {
+                  console.warn(`❌ Skipping ${fileName}: ${err.message}`)
+                  return null
+                })
+            )
           }
 
-          if (!animationMemoryCache.has(storeName))
-            animationMemoryCache.set(storeName, [])
-          validResults.forEach((item) =>
-            animationMemoryCache.get(storeName).push(item.dataUrl)
-          )
+          const batchBlobs = await Promise.all(batchPromises)
+          const validBlobs = batchBlobs.filter(Boolean)
+          validBlobs.forEach((blob) => framesArray.push(blob))
+
+          if (validBlobs.length > 0) {
+            const tx = db.transaction(storeName, 'readwrite')
+            const store = tx.objectStore(storeName)
+            validBlobs.forEach((blob, idx) => {
+              const id = `${info.baseName}${String(i + idx).padStart(3, '0')}.png`
+              store.put({ id, blob })
+            })
+            await new Promise((r) => (tx.oncomplete = r))
+          }
         }
 
-        console.log(`🎯 Cached ${storeName} (${info.frames} frames)`)
+        console.log(`🎯 Cached ${storeName} (${framesArray.length} frames)`)
       }
 
       localStorage.setItem('animationsCached', 'true')
@@ -179,29 +177,25 @@ export const setupAnimationsDB = async () => {
 // ----------------------------------------------------
 // FETCH SPECIFIC ABILITY FRAMES (for battle)
 // ----------------------------------------------------
-// fetchAbilityFrames: fetches frames for 1 ability only
 export const fetchAbilityFrames = async (abilityName) => {
-  // Check cache first (must be array)
+  // Memory cache first
   if (animationMemoryCache.has(abilityName)) {
     const cached = animationMemoryCache.get(abilityName)
     if (Array.isArray(cached)) return cached
-    // If cached value is an object (all frames), reload single ability frames below
   }
 
   return new Promise((resolve, reject) => {
     const request = indexedDB.open('Animations', 1)
-    request.onsuccess = (event) => {
+    request.onsuccess = async (event) => {
       const db = event.target.result
-
       if (!db.objectStoreNames.contains(abilityName)) return resolve([])
 
       const tx = db.transaction(abilityName, 'readonly')
       const store = tx.objectStore(abilityName)
       const getAllRequest = store.getAll()
-
       getAllRequest.onsuccess = () => {
-        const frames = getAllRequest.result.map((f) => f.dataUrl)
-        animationMemoryCache.set(abilityName, frames) // Cache single ability frames as Array
+        const frames = getAllRequest.result.map((f) => f.blob || f.dataUrl)
+        animationMemoryCache.set(abilityName, frames)
         resolve(frames)
       }
       getAllRequest.onerror = () => reject(getAllRequest.error)

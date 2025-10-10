@@ -6,6 +6,7 @@ const STORE_NAME = 'images'
 // ✅ Global memory cache
 export const memoryCache = new Map()
 
+// Initialize IndexedDB
 const initImageDB = async () => {
   return openDB(DB_NAME, 1, {
     upgrade(db) {
@@ -16,6 +17,7 @@ const initImageDB = async () => {
   })
 }
 
+// Blob -> Base64
 const blobToBase64 = (blob) =>
   new Promise((resolve, reject) => {
     const reader = new FileReader()
@@ -24,10 +26,42 @@ const blobToBase64 = (blob) =>
     reader.readAsDataURL(blob)
   })
 
+// Fetch and cache a single image
+const cacheSingleImage = async (db, src) => {
+  const key = src.startsWith('/') ? src.slice(1) : src
+  const cached = await db.get(STORE_NAME, key)
+  if (cached) {
+    memoryCache.set(key, cached)
+    return
+  }
+
+  try {
+    const response = await fetch(src)
+    if (!response.ok) throw new Error(`Failed to fetch ${src}`)
+    const blob = await response.blob()
+
+    // For low-end devices, optionally store as ObjectURL instead of base64
+    const base64 = await blobToBase64(blob)
+    await db.put(STORE_NAME, base64, key)
+    memoryCache.set(key, base64)
+  } catch (err) {
+    console.warn(`❌ Failed to cache ${src}`, err)
+  }
+}
+
+// Batch caching with concurrency limit
+const cacheBatch = async (db, paths = [], concurrency = 10) => {
+  for (let i = 0; i < paths.length; i += concurrency) {
+    const batch = paths.slice(i, i + concurrency)
+    await Promise.all(batch.map((src) => cacheSingleImage(db, src)))
+  }
+}
+
+// Main preload function
 export const preloadImagesToIDB = async (paths = []) => {
   const db = await initImageDB()
 
-  // Split into top-level new/ assets and subfolder assets
+  // Split paths: top-level first, subfolders second
   const topLevel = []
   const subFolders = []
 
@@ -40,45 +74,15 @@ export const preloadImagesToIDB = async (paths = []) => {
     } else if (parts.length > 2 && parts[0] === 'new') {
       subFolders.push(src)
     } else {
-      // If any other cases, treat as top level (optional)
       topLevel.push(src)
     }
   })
 
-  // Helper to cache an array of paths concurrently with limited concurrency (e.g. 10)
-  const concurrencyLimit = 10
-  const cacheBatch = async (arr) => {
-    for (let i = 0; i < arr.length; i += concurrencyLimit) {
-      const batch = arr.slice(i, i + concurrencyLimit)
-      await Promise.all(
-        batch.map(async (src) => {
-          const key = src.startsWith('/') ? src.slice(1) : src
-          const cached = await db.get(STORE_NAME, key)
-          if (!cached) {
-            try {
-              const response = await fetch(src)
-              const blob = await response.blob()
-              const base64 = await blobToBase64(blob)
-              await db.put(STORE_NAME, base64, key)
-              memoryCache.set(key, base64)
-              console.log(`✅ Cached: ${key}`)
-            } catch (err) {
-              console.error(`❌ Failed to cache ${src}`, err)
-            }
-          } else {
-            memoryCache.set(key, cached)
-            //console.log(`📦 Already cached: ${key}`)
-          }
-        })
-      )
-    }
-  }
+  // Cache top-level assets first (blocking)
+  await cacheBatch(db, topLevel, 10)
 
-  // First cache top-level assets
-  await cacheBatch(topLevel)
-
-  // Then cache subfolder assets (in background or after)
-  cacheBatch(subFolders).then(() => {
-    console.log('Subfolder assets caching complete')
-  })
+  // Cache subfolder assets in background
+  cacheBatch(db, subFolders, 5)
+    .then(() => console.log('✅ Subfolder assets caching complete'))
+    .catch((err) => console.error('❌ Subfolder caching failed', err))
 }

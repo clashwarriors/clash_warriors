@@ -58,10 +58,20 @@ export const fetchAndStoreAllCards = async (
 
   // ----- SKIP FETCH IF ALREADY CACHED -----
   if (!forceRefresh) {
-    const existing = await db.getAll(`cards_common`)
-    if (existing.length > 0) {
-      console.log('✅ Cards already cached, skipping fetch')
-      if (typeof onComplete === 'function') onComplete() // call refresh anyway
+    let anyCardsExist = false
+    for (const rarity of RARITIES) {
+      const existing = await db.getAll(`cards_${rarity}`)
+      if (existing.length > 0) {
+        anyCardsExist = true
+        break
+      }
+    }
+
+    if (anyCardsExist) {
+      console.log(
+        '✅ Cards already cached in IndexedDB, skipping backend fetch'
+      )
+      if (typeof onComplete === 'function') onComplete()
       return
     }
   }
