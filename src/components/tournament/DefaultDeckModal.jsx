@@ -23,7 +23,16 @@ const DefaultDeckModal = ({ isOpen, onClose, categoryData }) => {
     const fetchDefaultDeck = async () => {
       try {
         const cards = await getCards()
-        const deck = cards.filter((card) => card.defaultDeck).slice(0, 10)
+        const deck = cards
+          .filter((card) => card.defaultDeck === true)
+          .slice(0, 10)
+
+        // 🧩 Log only default deck card IDs
+        console.log(
+          '🧠 Default Deck Card IDs:',
+          deck.map((c) => c.cardId || c.id)
+        )
+        console.log('🎯 Default Deck Count:', deck.length)
 
         const deckWithCategory = deck.map((card) => {
           const matchedCategory = categories.find((category) => {
@@ -40,7 +49,7 @@ const DefaultDeckModal = ({ isOpen, onClose, categoryData }) => {
 
         setDefaultDeck(deckWithCategory)
       } catch (error) {
-        console.error('Failed to fetch default deck from IndexedDB:', error)
+        console.error('❌ Failed to fetch default deck from IndexedDB:', error)
       }
     }
 
@@ -71,12 +80,14 @@ const DefaultDeckModal = ({ isOpen, onClose, categoryData }) => {
             return (
               <div
                 key={index}
-                className={`default-deck-modal-card ${card?.category ? `card-${card.category}` : ''}`}
+                className={`default-deck-modal-card ${
+                  card?.category ? `card-${card.category}` : ''
+                }`}
               >
                 {card ? (
                   <div className="card-image-wrapper">
                     <img
-                      src={card.photo}
+                      src={card.photo || card.image}
                       alt={card.name}
                       className="default-deck-modal-card-image"
                     />

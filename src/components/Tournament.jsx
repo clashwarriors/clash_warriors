@@ -28,6 +28,7 @@ import {
   fetchAbilityFrames,
 } from '../utils/AnimationUtility'
 import { initSocket, disconnectSocket } from '../socketConfig'
+import { fetchDefaultDeckCards } from './tournament/utils/deckUtils'
 
 // Lazy-load the modal to reduce initial bundle size
 const DefaultDeckModal = React.lazy(
@@ -242,8 +243,7 @@ const Tournament = ({ user }) => {
           }
 
           // cached cards
-          const cards = await getCachedCardsFromIDB()
-          const defaultDeckCards = (cards || []).filter((c) => c.defaultDeck)
+          const defaultDeckCards = await fetchDefaultDeckCards()
           if (defaultDeckCards.length !== 10) {
             setAlertMessage(
               'You must have exactly 10 cards in your default deck!'
@@ -278,8 +278,7 @@ const Tournament = ({ user }) => {
           const idbUser = await getCachedUserFromIDB()
           if (!idbUser) return setAlertMessage('User data not found!')
 
-          const cards = await getCachedCardsFromIDB()
-          const defaultDeckCards = (cards || []).filter((c) => c.defaultDeck)
+          const defaultDeckCards = await fetchDefaultDeckCards()
           if (defaultDeckCards.length !== 10) {
             setAlertMessage(
               'You must have exactly 10 cards in your default deck!'
@@ -325,8 +324,7 @@ const Tournament = ({ user }) => {
           return
         }
 
-        const cards = await getCachedCardsFromIDB()
-        const defaultDeckCards = (cards || []).filter((c) => c.defaultDeck)
+        const defaultDeckCards = await fetchDefaultDeckCards()
         if (defaultDeckCards.length !== 10) {
           setAlertMessage(
             'You must have exactly 10 cards in your default deck!'
