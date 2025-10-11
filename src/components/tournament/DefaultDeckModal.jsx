@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react'
+import React, { useEffect, useState, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import CachedImage from '../Shared/CachedImage'
 import { getCards } from '../../utils/indexedDBService'
@@ -19,96 +19,86 @@ const DefaultDeckModal = ({ isOpen, onClose, categoryData }) => {
   const modalContentRef = useRef(null)
   const navigate = useNavigate()
 
-  useEffect(() => {
-    const fetchDefaultDeck = async () => {
-      try {
-        const cards = await getCards()
-        const deck = cards
-          .filter((card) => card.defaultDeck === true)
-          .slice(0, 10)
+  // ---------------- Fetch default deck once per open ----------------
+  const fetchDefaultDeck = useCallback(async () => {
+    try {
+      const cards = await getCards()
+      const deck = cards.filter((c) => c.defaultDeck === true).slice(0, 10)
 
-        // 🧩 Log only default deck card IDs
-        console.log(
-          '🧠 Default Deck Card IDs:',
-          deck.map((c) => c.cardId || c.id)
-        )
-        console.log('🎯 Default Deck Count:', deck.length)
-
-        const deckWithCategory = deck.map((card) => {
-          const matchedCategory = categories.find((category) => {
-            const data = categoryData?.[category]
-            return (
-              data &&
-              Object.values(data).some((entry) =>
-                entry?.hasOwnProperty(card.id)
-              )
-            )
-          })
-          return { ...card, category: matchedCategory || null }
+      // Map deck to include category only once
+      const deckWithCategory = deck.map((card) => {
+        const matchedCategory = categories.find((category) => {
+          const data = categoryData?.[category]
+          return data && Object.prototype.hasOwnProperty.call(data, card.id)
         })
+        return { ...card, category: matchedCategory || null }
+      })
 
-        setDefaultDeck(deckWithCategory)
-      } catch (error) {
-        console.error('❌ Failed to fetch default deck from IndexedDB:', error)
-      }
+      setDefaultDeck(deckWithCategory)
+    } catch (err) {
+      console.error('❌ Failed to fetch default deck:', err)
     }
-
-    if (isOpen) fetchDefaultDeck()
-  }, [isOpen, categoryData])
+  }, [categoryData])
 
   useEffect(() => {
-    const handleClickOutside = (e) => {
+    if (isOpen) fetchDefaultDeck()
+  }, [isOpen, fetchDefaultDeck])
+
+  // ---------------- Close modal on outside click ----------------
+  const handleClickOutside = useCallback(
+    (e) => {
       if (
         modalContentRef.current &&
         !modalContentRef.current.contains(e.target)
       ) {
         onClose()
       }
-    }
-    if (isOpen) document.addEventListener('mousedown', handleClickOutside)
+    },
+    [onClose]
+  )
+
+  useEffect(() => {
+    if (!isOpen) return
+    document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [isOpen, onClose])
+  }, [isOpen, handleClickOutside])
 
   if (!isOpen) return null
+
+  // ---------------- Render 10 slots efficiently ----------------
+  const slots = Array.from({ length: 10 }, (_, index) => {
+    const card = defaultDeck[index]
+    return (
+      <div
+        key={index}
+        className={`default-deck-modal-card ${card?.category ? `card-${card.category}` : ''}`}
+      >
+        {card ? (
+          <div className="card-image-wrapper">
+            <CachedImage
+              src={card.photo || card.image}
+              alt={card.name}
+              className="default-deck-modal-card-image"
+            />
+            {card.category && card.category !== 'free' && (
+              <CachedImage
+                src={`/new/tournament/frames/${card.category}-frame.png`}
+                alt={`${card.category} frame`}
+                className="card-frame-overlay"
+              />
+            )}
+          </div>
+        ) : (
+          <div className="default-deck-modal-placeholder">Empty Slot</div>
+        )}
+      </div>
+    )
+  })
 
   return (
     <div className="default-deck-modal-overlay">
       <div className="default-deck-modal-content" ref={modalContentRef}>
-        <div className="default-deck-modal-grid">
-          {Array.from({ length: 10 }, (_, index) => {
-            const card = defaultDeck[index]
-            return (
-              <div
-                key={index}
-                className={`default-deck-modal-card ${
-                  card?.category ? `card-${card.category}` : ''
-                }`}
-              >
-                {card ? (
-                  <div className="card-image-wrapper">
-                    <img
-                      src={card.photo || card.image}
-                      alt={card.name}
-                      className="default-deck-modal-card-image"
-                    />
-                    {card.category && card.category !== 'free' && (
-                      <CachedImage
-                        src={`/new/tournament/frames/${card.category}-frame.png`}
-                        alt={`${card.category} frame`}
-                        className="card-frame-overlay"
-                      />
-                    )}
-                  </div>
-                ) : (
-                  <div className="default-deck-modal-placeholder">
-                    Empty Slot
-                  </div>
-                )}
-              </div>
-            )
-          })}
-        </div>
-
+        <div className="default-deck-modal-grid">{slots}</div>
         <div className="default-deck-modal-footer">
           <CachedImage
             src="/new/tournament/builddeckBtn.png"

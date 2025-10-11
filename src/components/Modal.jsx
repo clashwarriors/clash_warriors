@@ -10,14 +10,14 @@ import {
 import { syncUser } from '../utils/firebaseSyncService'
 import { triggerHapticFeedback } from './tournament/utils/haptic'
 
-const xpMap = {
+const XP_MAP = {
   common: 15,
   uncommon: 25,
   rare: 35,
   mythical: 50,
   legendary: 75,
 }
-const pphMap = {
+const PPH_MAP = {
   common: 150,
   uncommon: 500,
   rare: 800,
@@ -25,12 +25,11 @@ const pphMap = {
   legendary: 1200,
 }
 
-// Memoized stats row
 const StatsRow = memo(({ stats, icons }) => (
   <div className="new-modal-stats-row">
-    {icons.map(({ src, key }) => (
-      <div key={key}>
-        <CachedImage src={src} /> {stats?.[key] ?? '-'}
+    {icons.map(({ key, src }) => (
+      <div key={key} className="stats-cell">
+        <CachedImage src={src} alt={key} /> {stats?.[key] ?? '-'}
       </div>
     ))}
   </div>
@@ -39,37 +38,50 @@ const StatsRow = memo(({ stats, icons }) => (
 const Modal = memo(({ user, isOpen, onClose, cardId, category }) => {
   const [cardDetails, setCardDetails] = useState(null)
   const [isCardPurchased, setIsCardPurchased] = useState(false)
-  const modalContentRef = useRef(null)
+  const modalRef = useRef(null)
 
-  // Fetch master cards once ever
   const fetchMasterCards = useCallback(async () => {
-    if (!window.__ALL_CARDS__) {
-      const stored = localStorage.getItem('masterCardUpdateV1')
-      if (stored) {
-        const parsed = JSON.parse(stored)
-        window.__ALL_CARDS__ = Array.isArray(parsed)
-          ? parsed
-          : (parsed.cards ?? [])
-      } else {
-        try {
-          const BACKEND_URL = import.meta.env.VITE_API_BASE_URL
-          const res = await fetch(`${BACKEND_URL}/api/cards`)
-          const data = await res.json()
-          window.__ALL_CARDS__ = Array.isArray(data) ? data : (data.cards ?? [])
-          localStorage.setItem(
-            'masterCardUpdateV1',
-            JSON.stringify(window.__ALL_CARDS__)
-          )
-        } catch (err) {
-          console.error('❌ Failed to fetch master cards:', err)
-          window.__ALL_CARDS__ = []
-        }
-      }
+    if (window.__ALL_CARDS__) return window.__ALL_CARDS__
+
+    // Try localStorage
+    const cached = localStorage.getItem('masterCardUpdateV1')
+    if (cached) {
+      const parsed = JSON.parse(cached)
+      window.__ALL_CARDS__ = Array.isArray(parsed)
+        ? parsed
+        : (parsed.cards ?? [])
+      // Normalize cards
+      window.__ALL_CARDS__ = window.__ALL_CARDS__.map((c) => ({
+        ...c,
+        image: c.image || c.photo || '/fallback.png',
+        name: c.name || c.title || 'Unknown Card',
+        cardId: c.cardId || c.id,
+      }))
+      return window.__ALL_CARDS__
     }
-    return window.__ALL_CARDS__
+
+    // Fetch from API
+    try {
+      const res = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/cards`)
+      const data = await res.json()
+      const cardsArray = Array.isArray(data) ? data : (data.cards ?? [])
+      window.__ALL_CARDS__ = cardsArray.map((c) => ({
+        ...c,
+        image: c.image || c.photo || '/fallback.png',
+        name: c.name || c.title || 'Unknown Card',
+        cardId: c.cardId || c.id,
+      }))
+      localStorage.setItem(
+        'masterCardUpdateV1',
+        JSON.stringify(window.__ALL_CARDS__)
+      )
+      return window.__ALL_CARDS__
+    } catch (err) {
+      console.error('❌ Failed to fetch master cards:', err)
+      return []
+    }
   }, [])
 
-  // Fetch card details
   useEffect(() => {
     if (!isOpen || !cardId) return
 
@@ -79,38 +91,29 @@ const Modal = memo(({ user, isOpen, onClose, cardId, category }) => {
     const fetchCard = async () => {
       const userCards = await getCards()
       let localCard = userCards.find((c) => c.cardId === cardId)
-      const masterSynced = localStorage.getItem('masterCardUpdateV1')
 
-      // Only sync once ever
-      if (!masterSynced) {
-        const allCards = await fetchMasterCards()
-        const jsonCard = allCards.find((c) => c.cardId === cardId)
-        if (jsonCard) {
-          localCard = localCard
-            ? { ...localCard, ...jsonCard }
-            : { ...jsonCard }
-          await storeCards([localCard])
-        }
-        localStorage.setItem(
-          'masterCardUpdateV1',
-          JSON.stringify(window.__ALL_CARDS__)
-        )
+      // Set purchased flag if user already owns it
+      if (localCard) setIsCardPurchased(true)
+
+      // Sync master cards once
+      const allCards = await fetchMasterCards()
+      const masterCard = allCards.find((c) => c.cardId === cardId)
+
+      if (masterCard) {
+        localCard = localCard ? { ...localCard, ...masterCard } : masterCard
+        await storeCards([localCard])
       }
 
-      if (localCard) setCardDetails(localCard)
+      setCardDetails(localCard)
     }
 
     fetchCard()
   }, [isOpen, cardId, fetchMasterCards])
 
-  // Close modal on outside click
   useEffect(() => {
     const handleClickOutside = (e) => {
-      triggerHapticFeedback('medium')
-      if (
-        modalContentRef.current &&
-        !modalContentRef.current.contains(e.target)
-      ) {
+      if (modalRef.current && !modalRef.current.contains(e.target)) {
+        triggerHapticFeedback('medium')
         onClose()
       }
     }
@@ -120,7 +123,6 @@ const Modal = memo(({ user, isOpen, onClose, cardId, category }) => {
     }
   }, [isOpen, onClose])
 
-  // Purchase card
   const purchaseCard = useCallback(async () => {
     if (!user?.userId || !cardDetails) return
     triggerHapticFeedback('medium')
@@ -132,7 +134,7 @@ const Modal = memo(({ user, isOpen, onClose, cardId, category }) => {
         return
       }
 
-      const cardData = {
+      const updatedCard = {
         cardId,
         name: cardDetails.name,
         description: cardDetails.description,
@@ -142,18 +144,18 @@ const Modal = memo(({ user, isOpen, onClose, cardId, category }) => {
         syncedWithMaster: true,
       }
 
-      await storeCards([cardData])
-      const updatedUserData = {
+      await storeCards([updatedCard])
+      const newUserData = {
         ...userData,
-        coins: userData.coins - cardDetails.price,
-        xp: (userData.xp || 0) + (xpMap[category] || 0),
-        pph: (userData.pph || 0) + (pphMap[category] || 0),
+        coins: userData.coins - (cardDetails.price || 0),
+        xp: (userData.xp || 0) + (XP_MAP[category] || 0),
+        pph: (userData.pph || 0) + (PPH_MAP[category] || 0),
       }
 
-      await storeUserData(updatedUserData)
+      await storeUserData(newUserData)
       setIsCardPurchased(true)
-      await syncUser(updatedUserData)
-      console.log('Card purchased:', cardData)
+      await syncUser(newUserData)
+      console.log('✅ Card purchased', updatedCard)
     } catch (err) {
       console.error('❌ Error purchasing card:', err)
     }
@@ -172,22 +174,22 @@ const Modal = memo(({ user, isOpen, onClose, cardId, category }) => {
 
   return (
     <div className="new-modal">
-      <div className="new-modal-content" ref={modalContentRef}>
+      <div className="new-modal-content" ref={modalRef}>
         <div className="new-modal-body">
           <div className={`new-modal-card-frame modal-rarity-${category}`}>
             <img
-              src={cardDetails?.image ?? cardDetails?.photo ?? '/fallback.png'}
-              alt={cardDetails?.name || 'Card Image'}
+              src={cardDetails?.image || cardDetails?.photo}
+              alt={cardDetails?.name ?? 'Card'}
               className="new-modal-card-image"
             />
           </div>
 
           <div className="new-modal-card-details">
             <h2 className="new-modal-title">
-              {cardDetails?.name || 'Loading...'}
+              {cardDetails?.name ?? 'Loading...'}
             </h2>
             <p className="new-modal-description">
-              {cardDetails?.description || 'No description.'}
+              {cardDetails?.description ?? 'No description.'}
             </p>
 
             <StatsRow

@@ -1,5 +1,5 @@
 import { useParams, useNavigate } from 'react-router-dom'
-import { useEffect, useState, useRef } from 'react'
+import React, { useEffect, useState, useRef, useCallback } from 'react'
 import { ref, onValue, off, update } from 'firebase/database'
 import { showRewardedInterstitialAd10K } from './utils/adsUtility'
 import './style/battle.css'
@@ -12,9 +12,24 @@ import CachedImage from '../shared/CachedImage'
 import { getUserData, storeUserData } from '../../utils/indexedDBService'
 import { PHASES, PHASE_TIMERS, ABILITIES } from './utils/battleModifiers'
 import { fetchAbilityFrames } from '../../utils/AnimationUtility'
-import { abilityConfig } from './weights/abilites' // your ability JSON
+import { abilityConfig } from './weights/abilites'
 import Joyride from 'react-joyride'
 import { triggerHapticFeedback } from '../tournament/utils/haptic'
+import PlayerHeader from './battleComp/BattleHeader'
+import DeckSection from './battleComp/DeckSection'
+import BattleFooter from './battleComp/BattleFooter'
+import AbilityPopup from './battleComp/AbilityPopup'
+import FinishedModal from './battleComp/FinishedModal'
+import PhaseAnnouncement from './battleComp/PhaseAnnouncement'
+import BattleArea from './battleComp/BattleArea'
+
+const MemoizedPlayerHeader = React.memo(PlayerHeader)
+const MemoizedBattleArea = React.memo(BattleArea)
+const MemoizedDeckSection = React.memo(DeckSection)
+const MemoizedBattleFooter = React.memo(BattleFooter)
+const MemoizedAbilityPopup = React.memo(AbilityPopup)
+const MemoizedFinishedModal = React.memo(FinishedModal)
+const MemoizedPhaseAnnouncement = React.memo(PhaseAnnouncement)
 
 const Battle = ({ user }) => {
   const { matchID } = useParams()
@@ -328,7 +343,7 @@ const Battle = ({ user }) => {
         // Prepare minimal deck for bot
         const minimalDeck = defaultDeckCards.map((card) => ({
           cardId: card.cardId,
-          cardPhotoSrc: card.photo,
+          cardPhotoSrc: card.photo || card.image,
           stats: card.stats || {},
         }))
 
@@ -352,70 +367,80 @@ const Battle = ({ user }) => {
     fetchDefaultDeck()
   }, [matchID, match])
 
-  const handleCardClick = async (card) => {
-    triggerHapticFeedback()
-    if (phase !== PHASES.SELECTION || cardSelected) return // block extra clicks
+  const handleCardClick = useCallback(
+    async (card) => {
+      triggerHapticFeedback()
+      if (phase !== PHASES.SELECTION || cardSelected) return
 
-    try {
-      const res = await fetch(`${backend}/api/battle/${matchID}/select-card`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          playerId: userId,
-          cardId: card.cardId,
-          photo: card.photo,
-          stats: card.stats,
-        }),
-      })
+      try {
+        const res = await fetch(
+          `${backend}/api/battle/${matchID}/select-card`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              playerId: userId,
+              cardId: card.cardId,
+              photo: card.photo,
+              stats: card.stats,
+            }),
+          }
+        )
 
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'Failed to select card')
+        const data = await res.json()
+        if (!res.ok) throw new Error(data.error || 'Failed to select card')
 
-      console.log('Card selected successfully:', data)
-      setShowAbilityPopup(true)
-      setCardSelected(true) // prevent re-select until next round
-    } catch (err) {
-      console.error('Failed to select card:', err)
-    }
-  }
+        console.log('Card selected successfully:', data)
+        setShowAbilityPopup(true)
+        setCardSelected(true)
+      } catch (err) {
+        console.error('Failed to select card:', err)
+      }
+    },
+    [phase, cardSelected, backend, matchID, userId]
+  )
 
-  const handleAbilityClick = async (abilityKey) => {
-    triggerHapticFeedback()
-    if (phase !== PHASES.SELECTION) return
-    if (!match || !userId) return console.error('No match or userId available')
+  const handleAbilityClick = useCallback(
+    async (abilityKey) => {
+      triggerHapticFeedback()
+      if (phase !== PHASES.SELECTION) return
+      if (!match || !userId)
+        return console.error('No match or userId available')
 
-    try {
-      const isPlayer1 = match.player1.playerId === userId
-      const playerKey = isPlayer1 ? 'player1' : 'player2'
+      try {
+        const isPlayer1 = match.player1.playerId === userId
+        const playerKey = isPlayer1 ? 'player1' : 'player2'
 
-      const res = await fetch(
-        `${backend}/api/battle/${matchID}/select-ability`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ playerId: userId, abilityKey }),
-        }
-      )
+        const res = await fetch(
+          `${backend}/api/battle/${matchID}/select-ability`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ playerId: userId, abilityKey }),
+          }
+        )
 
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'Failed to select ability')
+        const data = await res.json()
+        if (!res.ok) throw new Error(data.error || 'Failed to select ability')
 
-      console.log(`Ability ${abilityKey} selected successfully:`, data)
+        console.log(`Ability ${abilityKey} selected successfully:`, data)
 
-      // ✅ Update local state for UI
-      if (isPlayer1) setPlayer1Ability(abilityKey)
-      else setPlayer2Ability(abilityKey)
+        // ✅ Update local state for UI
+        if (isPlayer1) setPlayer1Ability(abilityKey)
+        else setPlayer2Ability(abilityKey)
 
-      // ✅ Also update selectedAbility for button enable
-      setSelectedAbility(abilityKey)
+        // ✅ Also update selectedAbility for button enable
+        setSelectedAbility(abilityKey)
 
-      setShowAbilityPopup(false)
-    } catch (err) {
-      console.error('Failed to select ability:', err)
-    }
-  }
+        setShowAbilityPopup(false)
+      } catch (err) {
+        console.error('Failed to select ability:', err)
+      }
+    },
+    [phase, match, userId, backend, matchID]
+  )
 
-  const handleEndRound = async () => {
+  const handleEndRound = useCallback(async () => {
     triggerHapticFeedback()
     console.log('End Round clicked')
 
@@ -439,11 +464,11 @@ const Battle = ({ user }) => {
     } catch (err) {
       console.error('Failed to end turn:', err)
     }
-  }
+  }, [matchID, user?.userId, backend])
 
-  const cancelMatch = async () => {
+  const cancelMatch = useCallback(async () => {
     triggerHapticFeedback()
-    if (!matchID || !user.userId) return
+    if (!matchID || !user?.userId) return
 
     try {
       await fetch(`${backend}/api/battle/${matchID}/cancelMatch`, {
@@ -461,7 +486,7 @@ const Battle = ({ user }) => {
     } catch (err) {
       console.error('Failed to cancel match:', err)
     }
-  }
+  }, [matchID, user?.userId, backend, navigate])
 
   // Animation Part
 
@@ -777,257 +802,71 @@ const Battle = ({ user }) => {
   return (
     <div className="battle-container" ref={containerRef}>
       <div className="battle-header">
-        {/* Left Player */}
-        <div className="battle-header-left">
-          <div className="avatar-container">
-            <img src={player1DP} alt="Player Avatar" className="avatar" />
-            {player1Role && (
-              <span className="role-badge left">
-                {player1Role === 'attack' ? '⚔️' : '🛡️'}
-              </span>
-            )}
-          </div>
-          <div className="player-info">
-            <p className="player-name">{player1Name}</p>
-            <div className="synergy-bar">
-              <div className="synergy-fill" style={{ width: `${player1Hp}%` }}>
-                <span className="synergy-text">{player1Hp}%</span>
-              </div>
-            </div>
-          </div>
-        </div>
+        <MemoizedPlayerHeader
+          name={player1Name}
+          role={player1Role}
+          dp={player1DP}
+          hp={player1Hp}
+          side="left"
+        />
 
         <div className="timer-text">
           {remainingTime > 0 ? `${remainingTime}s` : ''}
         </div>
 
-        {/* Right Player */}
-        <div className="battle-header-right">
-          <div className="player-info">
-            <p className="player-name">{player2Name}</p>
-            <div className="synergy-bar">
-              <div className="synergy-fill" style={{ width: `${player2Hp}%` }}>
-                <span className="synergy-text">{player2Hp}%</span>
-              </div>
-            </div>
-          </div>
-          <div className="avatar-container">
-            <img src={player2DP} className="avatar" />
-            {player2Role && (
-              <span className="role-badge right">
-                {player2Role === 'attack' ? '⚔️' : '🛡️'}
-              </span>
-            )}
-          </div>
-        </div>
-      </div>
-
-      <div className="battle-area">
-        {/* Left Player */}
-        <div
-          className="summon-wrapper summon-left"
-          style={{ position: 'relative' }}
-        >
-          <img
-            src={selectedCard ? selectedCard.src : cardHolder}
-            alt="Player Card"
-            className="card-img"
-            style={{ position: 'relative', zIndex: 2 }}
-          />
-          <img
-            src={summonLeft}
-            alt="Summon Ring Left"
-            className="summon-img glow-orange"
-          />
-        </div>
-
-        {/* Right Player */}
-        <div
-          className="summon-wrapper summon-right"
-          style={{ position: 'relative' }}
-        >
-          <img
-            src={player2SelectedCard ? player2SelectedCard.src : cardHolder}
-            className="card-img"
-            style={{ marginLeft: 10 }}
-            alt="Player2 Card"
-          />
-          <img
-            src={summonRight}
-            alt="Summon Ring Right"
-            className="summon-img glow-blue tilt-up"
-          />
-        </div>
-      </div>
-
-      <div className="deck-section">
-        {playerDeck.map((card) => {
-          // Block if used in previous rounds OR currently selected in this round
-          const isBlocked =
-            usedCardIds.includes(card.cardId) ||
-            (currentRound?.player1?.cardId === card.cardId && isPlayer1) ||
-            (currentRound?.player2?.cardId === card.cardId && !isPlayer1)
-
-          return (
-            <img
-              key={card.cardId}
-              src={card.photo}
-              alt={card.name}
-              className={`deck-card 
-          ${phase !== PHASES.SELECTION ? 'disabled' : ''} 
-          ${isBlocked ? 'used' : ''}`}
-              onClick={() => (
-                !isBlocked && handleCardClick(card), triggerHapticFeedback()
-              )}
-            />
-          )
-        })}
-      </div>
-
-      <div className="battle-footer">
-        <CachedImage
-          src="/new/battle/assets/endBattleBtn.png"
-          alt="End Battle Button"
-          className="footer-btn"
-          onClick={cancelMatch}
-        />
-
-        <CachedImage
-          src={phaseBadges[phase]}
-          alt={`Phase: ${phase}`}
-          className="phase-badge"
-        />
-        <CachedImage
-          src="/new/battle/assets/endRoundBtn.png"
-          alt="End Round Button"
-          className="footer-btn end-round-btn"
-          onClick={handleEndRound}
-          style={{
-            opacity: selectedCard && selectedAbility ? 1 : 0.5,
-          }}
-          title={
-            selectedCard && selectedAbility
-              ? 'End Round'
-              : 'Select card and ability first'
-          }
+        <MemoizedPlayerHeader
+          name={player2Name}
+          role={player2Role}
+          dp={player2DP}
+          hp={player2Hp}
+          side="right"
         />
       </div>
 
-      {showAbilityPopup && (
-        <div className="ability-popup">
-          <h3>Select an Ability</h3>
-          <div className="abilities-grid">
-            {Object.entries(ABILITIES)
-              .filter(([key, ability]) => {
-                const ATTACK_ABILITIES = [
-                  'TITAN_STRIKE',
-                  'BERSERKERS_FURY',
-                  'MINDWRAP',
-                  'TWIN_STRIKE',
-                  'SOUL_LEECH',
-                  'FURY_UNLEASHED',
-                ]
-                const DEFENSE_ABILITIES = [
-                  'AEGIS_WARD',
-                  'CELESTIAL_REJUVENATION',
-                  'GUARDIANS_BULWARK',
-                  'ARCANE_OVERCHARGE',
-                ]
+      <MemoizedBattleArea
+        selectedCard={selectedCard}
+        player2SelectedCard={player2SelectedCard}
+        cardHolder={cardHolder}
+        summonLeft={summonLeft}
+        summonRight={summonRight}
+      />
 
-                if (player1Role === 'attack')
-                  return ATTACK_ABILITIES.includes(key)
-                if (player1Role === 'defense')
-                  return DEFENSE_ABILITIES.includes(key)
-                return false
-              })
-              .map(([key, ability]) => {
-                const abilityImages = {
-                  AEGIS_WARD: '/new/battle/assets/ability/Aegis_Wards.png',
-                  FURY_UNLEASHED:
-                    '/new/battle/assets/ability/Fury_Unleashed.png',
-                  ARCANE_OVERCHARGE:
-                    '/new/battle/assets/ability/Archane_Overcharged.png',
-                  BERSERKERS_FURY:
-                    '/new/battle/assets/ability/Berserkers_Fury.png',
-                  CELESTIAL_REJUVENATION:
-                    '/new/battle/assets/ability/Celestial_Rejuvenation.png',
-                  GUARDIANS_BULWARK:
-                    '/new/battle/assets/ability/Guardian_s_Bulwark.png',
-                  MINDWRAP: '/new/battle/assets/ability/Mind_Wrap.png',
-                  SOUL_LEECH: '/new/battle/assets/ability/Soul_Leech.png',
-                  TITAN_STRIKE: '/new/battle/assets/ability/Titans_Strike.png',
-                  TWIN_STRIKE: '/new/battle/assets/ability/Twin_Strike.png',
-                }
+      <MemoizedDeckSection
+        playerDeck={playerDeck}
+        usedCardIds={usedCardIds}
+        currentRound={currentRound}
+        isPlayer1={isPlayer1}
+        phase={phase}
+        handleCardClick={handleCardClick}
+      />
 
-                // ✅ Disable button if ability already used
-                const isUsed = usedAbilities.includes(ability)
+      <MemoizedBattleFooter
+        cancelMatch={cancelMatch}
+        handleEndRound={handleEndRound}
+        phase={phase}
+        phaseBadges={phaseBadges}
+        selectedCard={selectedCard}
+        selectedAbility={selectedAbility}
+      />
 
-                return (
-                  <button
-                    key={ability}
-                    className={`ability-btn ${selectedAbility === ability ? 'selected' : ''} ${isUsed ? 'disabled' : ''}`}
-                    onClick={() => !isUsed && handleAbilityClick(ability)}
-                    type="button"
-                  >
-                    <CachedImage
-                      src={abilityImages[key]}
-                      alt={ability}
-                      className="ability-img"
-                    />
-                  </button>
-                )
-              })}
-          </div>
-        </div>
-      )}
+      <MemoizedAbilityPopup
+        show={showAbilityPopup}
+        playerRole={player1Role}
+        selectedAbility={selectedAbility}
+        usedAbilities={usedAbilities}
+        handleAbilityClick={handleAbilityClick}
+        ABILITIES={ABILITIES}
+      />
 
-      {showFinishedModal && (
-        <div className="newGame-modal">
-          <div className="newGame-modal-slab">
-            <h2 style={{ fontFamily: '"MedievalSharpBold", sans-serif' }}>
-              {finalResult === 'user'
-                ? '🏆 You Win!'
-                : finalResult === 'bot'
-                  ? '💀 You Lose!'
-                  : '⚖️ It’s a Tie!'}
-            </h2>
-            {(finalResult === 'user' || finalResult === 'tie') && (
-              <p className="reward-text" style={{ marginTop: '-10px' }}>
-                {finalResult === 'user'
-                  ? '💰 You earned 30,000 Coins!'
-                  : '🎁 You earned 5,000 Coins!'}
-              </p>
-            )}
-            <p style={{ marginTop: '15px' }}>
-              Thanks for playing. Redirecting to Tournament...
-            </p>
-            <button onClick={() => navigate('/tournament')}>
-              Return Tournament
-            </button>
-            <button
-              onClick={async () => {
-                const success = await showRewardedInterstitialAd10K(user.userId)
-                if (success) {
-                  navigate('/tournament')
-                } else {
-                  alert('Ad not completed. No reward granted.')
-                  navigate('/tournament')
-                }
-              }}
-              style={{ marginTop: 10 }}
-              type="button"
-            >
-              Earn 10K Coins
-            </button>
-          </div>
-        </div>
-      )}
+      <MemoizedFinishedModal
+        show={showFinishedModal}
+        finalResult={finalResult}
+        user={user}
+        showRewardedInterstitialAd10K={showRewardedInterstitialAd10K}
+      />
 
-      {phaseAnnouncement && (
-        <div className="phase-announcement">
-          {phaseAnnouncement.toUpperCase()}
-        </div>
-      )}
+      <MemoizedPhaseAnnouncement text={phaseAnnouncement} />
+
       <Joyride
         steps={steps} // renamed array for clarity
         run={runTutorial} // controlled by useEffect
