@@ -8,7 +8,6 @@ import cardHolder from '/assets/gameLogo.avif'
 import summonLeft from './assets/leftSummon.png'
 import summonRight from './assets/rightSummon.png'
 import { realtimeDB } from '../../firebase'
-import CachedImage from '../shared/CachedImage'
 import { getUserData, storeUserData } from '../../utils/indexedDBService'
 import { PHASES, PHASE_TIMERS, ABILITIES } from './utils/battleModifiers'
 import { fetchAbilityFrames } from '../../utils/AnimationUtility'
@@ -91,6 +90,9 @@ const Battle = ({ user }) => {
   const [currentStepIndex, setCurrentStepIndex] = useState(0)
   const [stepIndex, setStepIndex] = useState(0)
   const [steps, setSteps] = useState([])
+  //for tutorial
+  const [tutRound, setTutRound] = useState(0)
+  const [tutPhase, setTutPhase] = useState(0)
 
   const backend = import.meta.env.VITE_API_BASE_URL
   //const backend = 'http://localhost:3000'
@@ -110,8 +112,9 @@ const Battle = ({ user }) => {
       // Round Number
 
       const currentRoundNumber = data.round || 0
-      setCurrentRoundNumber(currentRoundNumber) // store in state if needed
-      console.log('Current Round:', currentRoundNumber)
+      setCurrentRoundNumber(currentRoundNumber)
+      const tutRound = data.numericRound || 0
+      setTutRound(tutRound)
 
       // ✅ Determine if current user is player1 or player2
       const isUserPlayer1 = data.player1?.userId === userId
@@ -287,14 +290,6 @@ const Battle = ({ user }) => {
         data.currentPhase === 'finished' ||
         data.currentPhase === 'cancelled'
       ) {
-        // if (
-        //   data.timersType === 'tutorial' &&
-        //   !localStorage.getItem('tutorialCompleted')
-        // ) {
-        //   localStorage.setItem('tutorialCompleted', 'true')
-        //   console.log('Tutorial completed, flag set')
-        // }
-
         if (data.winnerId === userId) {
           setFinalResult('user')
           setShowFinishedModal(true)
@@ -313,6 +308,11 @@ const Battle = ({ user }) => {
           setFinalResult('tie')
           setShowFinishedModal(true)
         }
+
+        setPlayer1DP(null)
+        setPlayer2DP(null)
+        setSelectedCard(null)
+        setPlayer2SelectedCard(null)
 
         finishTimeout = setTimeout(() => {
           navigate('/tournament')
@@ -751,7 +751,7 @@ const Battle = ({ user }) => {
       return
     }
 
-    if (currentRoundNumber === 0) {
+    if (tutRound === 0) {
       if (phase === 'cooldown') setSteps(cooldownSteps)
       else if (phase === 'selection') setSteps(selection1Steps)
 
@@ -761,7 +761,7 @@ const Battle = ({ user }) => {
       setRunTutorial(false)
       setStepIndex(-1)
     }
-  }, [currentRoundNumber, phase])
+  }, [tutRound, phase])
 
   useEffect(() => {
     if (!runTutorial || stepIndex < 0 || stepIndex >= steps.length) return
@@ -801,71 +801,76 @@ const Battle = ({ user }) => {
 
   return (
     <div className="battle-container" ref={containerRef}>
-      <div className="battle-header">
-        <MemoizedPlayerHeader
-          name={player1Name}
-          role={player1Role}
-          dp={player1DP}
-          hp={player1Hp}
-          side="left"
+      {match && phase !== 'finished' && phase !== 'cancelled' && (
+        <>
+          <div className="battle-header">
+            <MemoizedPlayerHeader
+              name={player1Name}
+              role={player1Role}
+              dp={player1DP}
+              hp={player1Hp}
+              side="left"
+            />
+
+            <div className="timer-text">
+              {remainingTime > 0 ? `${remainingTime}s` : ''}
+            </div>
+
+            <MemoizedPlayerHeader
+              name={player2Name}
+              role={player2Role}
+              dp={player2DP}
+              hp={player2Hp}
+              side="right"
+            />
+          </div>
+
+          <MemoizedBattleArea
+            selectedCard={selectedCard}
+            player2SelectedCard={player2SelectedCard}
+            cardHolder={cardHolder}
+            summonLeft={summonLeft}
+            summonRight={summonRight}
+          />
+
+          <MemoizedDeckSection
+            playerDeck={playerDeck}
+            usedCardIds={usedCardIds}
+            currentRound={currentRound}
+            isPlayer1={isPlayer1}
+            phase={phase}
+            handleCardClick={handleCardClick}
+          />
+
+          <MemoizedBattleFooter
+            cancelMatch={cancelMatch}
+            handleEndRound={handleEndRound}
+            phase={phase}
+            phaseBadges={phaseBadges}
+            selectedCard={selectedCard}
+            selectedAbility={selectedAbility}
+          />
+
+          <MemoizedAbilityPopup
+            show={showAbilityPopup}
+            playerRole={player1Role}
+            selectedAbility={selectedAbility}
+            usedAbilities={usedAbilities}
+            handleAbilityClick={handleAbilityClick}
+            ABILITIES={ABILITIES}
+          />
+
+          <MemoizedPhaseAnnouncement text={phaseAnnouncement} />
+        </>
+      )}
+      {showFinishedModal && (
+        <MemoizedFinishedModal
+          show={showFinishedModal}
+          finalResult={finalResult}
+          user={user}
+          showRewardedInterstitialAd10K={showRewardedInterstitialAd10K}
         />
-
-        <div className="timer-text">
-          {remainingTime > 0 ? `${remainingTime}s` : ''}
-        </div>
-
-        <MemoizedPlayerHeader
-          name={player2Name}
-          role={player2Role}
-          dp={player2DP}
-          hp={player2Hp}
-          side="right"
-        />
-      </div>
-
-      <MemoizedBattleArea
-        selectedCard={selectedCard}
-        player2SelectedCard={player2SelectedCard}
-        cardHolder={cardHolder}
-        summonLeft={summonLeft}
-        summonRight={summonRight}
-      />
-
-      <MemoizedDeckSection
-        playerDeck={playerDeck}
-        usedCardIds={usedCardIds}
-        currentRound={currentRound}
-        isPlayer1={isPlayer1}
-        phase={phase}
-        handleCardClick={handleCardClick}
-      />
-
-      <MemoizedBattleFooter
-        cancelMatch={cancelMatch}
-        handleEndRound={handleEndRound}
-        phase={phase}
-        phaseBadges={phaseBadges}
-        selectedCard={selectedCard}
-        selectedAbility={selectedAbility}
-      />
-
-      <MemoizedAbilityPopup
-        show={showAbilityPopup}
-        playerRole={player1Role}
-        selectedAbility={selectedAbility}
-        usedAbilities={usedAbilities}
-        handleAbilityClick={handleAbilityClick}
-        ABILITIES={ABILITIES}
-      />
-
-      <MemoizedFinishedModal
-        show={showFinishedModal}
-        finalResult={finalResult}
-        user={user}
-        showRewardedInterstitialAd10K={showRewardedInterstitialAd10K}
-      />
-
-      <MemoizedPhaseAnnouncement text={phaseAnnouncement} />
+      )}
 
       <Joyride
         steps={steps} // renamed array for clarity

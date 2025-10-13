@@ -52,18 +52,19 @@ export const storeCards = async (cards) => {
   if (!cards || !cards.length) return
   const db = await initDB()
   const tx = db.transaction('cards', 'readwrite')
+
   for (const card of cards) {
-    await tx.store.put(card)
-    memoryCache.cards.set(card.cardId, card)
+    const existing = await tx.store.get(card.cardId)
+    const merged = { ...existing, ...card }
+    await tx.store.put(merged)
   }
+
   await tx.done
 }
 
 export const getCards = async () => {
-  if (memoryCache.cards.size > 0) return Array.from(memoryCache.cards.values())
   const db = await initDB()
   const cards = await db.getAll('cards')
-  cards.forEach((c) => memoryCache.cards.set(c.cardId, c))
   return cards
 }
 

@@ -7,9 +7,9 @@ import {
   useNavigate,
 } from 'react-router-dom'
 import { TonConnectUIProvider } from '@tonconnect/ui-react'
-import { preloadImagesToIDB } from './utils/imagePreloader'
 import { getUserData } from './utils/indexedDBService'
-import imageList from './assets/imageList.json'
+import imageList from './assets/imageList'
+import { preloadImagesToIDB } from './utils/imagePreloader'
 
 import Dashboard from './components/Dashboard'
 import Footer from './components/Footer'
@@ -85,7 +85,6 @@ function App() {
     })
   }
 
-  // Preload images
   useEffect(() => {
     const loadAssets = async () => {
       try {

@@ -15,14 +15,6 @@ const initImageDB = async () => {
   })
 }
 
-const blobToBase64 = (blob) =>
-  new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onloadend = () => resolve(reader.result)
-    reader.onerror = reject
-    reader.readAsDataURL(blob)
-  })
-
 const CachedImage = ({
   src,
   alt = '',
@@ -32,69 +24,52 @@ const CachedImage = ({
   ...props
 }) => {
   const [imageData, setImageData] = useState(null)
-  const [triedNetwork, setTriedNetwork] = useState(false)
 
   useEffect(() => {
     let isMounted = true
-    const cleanKey = src?.startsWith('/') ? src.slice(1) : src
+    const key = src.startsWith('/') ? src.slice(1) : src
 
-    const loadFromCache = async () => {
-      if (!src || typeof src !== 'string') return
+    const loadImage = async () => {
+      if (!src) return
 
-      if (src.startsWith('data:')) {
-        setImageData(src)
-        return
-      }
-
-      // Check memory cache first
-      if (memoryCache.has(cleanKey)) {
-        setImageData(memoryCache.get(cleanKey))
+      // Memory cache
+      if (memoryCache.has(key)) {
+        setImageData(memoryCache.get(key))
         return
       }
 
       try {
         const db = await initImageDB()
-        const cached = await db.get(STORE_NAME, cleanKey)
+        const cachedBlob = await db.get(STORE_NAME, key)
 
-        if (cached && isMounted) {
-          memoryCache.set(cleanKey, cached)
-          setImageData(cached)
-        } else {
-          // If not cached and haven't tried network yet, fetch now
-          if (!triedNetwork) {
-            try {
-              const response = await fetch(src)
-              if (!response.ok) throw new Error('Network response not ok')
-              const blob = await response.blob()
-              const base64 = await blobToBase64(blob)
-              if (isMounted) {
-                memoryCache.set(cleanKey, base64)
-                setImageData(base64)
-                const db = await initImageDB()
-                await db.put(STORE_NAME, base64, cleanKey)
-              }
-              setTriedNetwork(true)
-            } catch {
-              if (isMounted) setImageData(fallback)
-            }
-          } else {
-            if (isMounted) setImageData(fallback)
-          }
+        if (cachedBlob) {
+          const objectURL = URL.createObjectURL(cachedBlob)
+          memoryCache.set(key, objectURL)
+          if (isMounted) setImageData(objectURL)
+          return
         }
+
+        // Fetch if not cached
+        const response = await fetch(src)
+        if (!response.ok) throw new Error('Failed to fetch')
+        const blob = await response.blob()
+        await db.put(STORE_NAME, blob, key)
+        const objectURL = URL.createObjectURL(blob)
+        memoryCache.set(key, objectURL)
+        if (isMounted) setImageData(objectURL)
       } catch (err) {
-        console.error(`❌ CachedImage error for ${src}:`, err)
+        console.warn(`❌ CachedImage error for ${src}`, err)
         if (isMounted) setImageData(fallback)
       }
     }
 
-    loadFromCache()
+    loadImage()
+
     return () => {
       isMounted = false
-      setTriedNetwork(false)
     }
-  }, [src, fallback, triedNetwork])
+  }, [src, fallback])
 
-  // Prevent infinite fallback loop:
   const handleError = () => {
     if (imageData !== fallback) setImageData(fallback)
   }

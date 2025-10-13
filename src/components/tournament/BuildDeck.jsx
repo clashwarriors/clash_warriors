@@ -11,10 +11,6 @@ import starivya from './assets/starviya.png'
 import stormscaller from './assets/stormscaller.png'
 import xalgrith from './assets/xalgrith.png'
 import steeltitan from './assets/steeltitan.png'
-import {
-  triggerHapticFeedback,
-  dropHapticFeedback,
-} from '../tournament/utils/haptic'
 import './style/builddeck.style.css'
 import CachedImage from '../Shared/CachedImage'
 
@@ -45,92 +41,120 @@ const BuildDeck = ({ user }) => {
   // Fetch cards
   const fetchCards = useCallback(async () => {
     if (!user?.userId) return
+
     try {
-      const cardsData = await getCards()
+      const cardsData = await getCards() // always fresh from IndexedDB
       const tempDefault = []
       const tempAvailable = []
 
-      cardsData.forEach((card, i) => {
+      // Collect cards marked as defaultDeck
+      for (const card of cardsData) {
         const totalStats = Object.values(card.stats || {}).reduce(
           (a, b) => a + b,
           0
         )
         const cardWithStats = { ...card, totalStats }
 
-        if (card.defaultDeck === true) {
-          tempDefault.push(cardWithStats)
-        } else if (
-          selectedCharacter === 'Select Character' ||
-          normalize(card.name).includes(normalize(selectedCharacter))
-        ) {
-          tempAvailable.push(cardWithStats)
+        if (card.defaultDeck) tempDefault.push(cardWithStats)
+        else tempAvailable.push(cardWithStats)
+      }
+
+      // Ensure only first 10 cards remain defaultDeck
+      if (tempDefault.length > 10) {
+        const excessCards = tempDefault.slice(10)
+        for (const card of excessCards) {
+          await storeCards([{ ...card, defaultDeck: false }])
         }
-      })
+        tempDefault.splice(10) // keep only first 10
+      }
 
-      // 🧩 Log only default deck card IDs
-      console.log(
-        '🧠 Default Deck Card IDs:',
-        tempDefault.map((c) => c.cardId || c.id)
-      )
-
-      console.log('🎯 Default Cards Count:', tempDefault.length)
-      console.log('🎯 Available Cards Count:', tempAvailable.length)
-
-      setDefaultCards(tempDefault.slice(0, 10))
+      setDefaultCards(tempDefault)
       setUserCards(tempAvailable)
-    } catch (error) {
-      console.error('❌ Error fetching cards:', error)
+    } catch (err) {
+      console.error('❌ Error fetching cards:', err)
     }
-  }, [user?.userId, selectedCharacter])
+  }, [user?.userId])
 
   useEffect(() => {
     fetchCards()
   }, [fetchCards])
 
-  // ------------------------------------------
-  // Handle card selection
-  // ------------------------------------------
+  // -------------------------------
+  // Select or toggle a card in default deck
+  // -------------------------------
   const handleCardSelect = async (card) => {
     if (!user?.userId || isProcessing) return
 
-    if (defaultCards.length >= 10) {
-      alert('You can only have 10 cards.')
-      return
-    }
-
     setIsProcessing(true)
     try {
-      // 🟢 Safe haptic trigger
-      try {
-        if (window?.Telegram?.WebApp?.HapticFeedback) {
-          triggerHapticFeedback()
-        }
-      } catch (err) {
-        console.warn('⚠️ Haptic skipped:', err)
+      const allCards = await getCards()
+      const currentDefaults = allCards.filter((c) => c.defaultDeck)
+
+      // Already in default deck? Do nothing
+      if (card.defaultDeck) {
+        alert('Card is already in default deck')
+        return
       }
 
-      const updatedCard = { ...card, defaultDeck: true }
-      await storeCards([updatedCard])
+      // Limit max 10
+      if (currentDefaults.length >= 10) {
+        alert('You can only have 10 cards in default deck.')
+        return
+      }
 
+      // Mark the selected card as true
+      const updatedCards = allCards.map((c) =>
+        c.cardId === card.cardId ? { ...c, defaultDeck: true } : c
+      )
+
+      await storeCards(updatedCards)
+
+      // Update user synergy
       const userData = (await getUserData()) || {}
       const newSynergy = (userData.totalSynergy || 0) + (card.totalStats || 0)
-
-      await storeUserData({
-        ...userData,
-        totalSynergy: newSynergy,
-      })
+      await storeUserData({ ...userData, totalSynergy: newSynergy })
 
       await fetchCards()
-    } catch (error) {
-      console.error('❌ Error selecting card:', error)
+    } catch (err) {
+      console.error('❌ Error selecting card:', err)
     } finally {
       setIsProcessing(false)
     }
   }
 
-  // ------------------------------------------
-  // Tutorial-aware card selection
-  // ------------------------------------------
+  // -------------------------------
+  // Remove card from default deck
+  // -------------------------------
+  const handleRemoveCard = async (card) => {
+    if (!user?.userId || isProcessing) return
+
+    setIsProcessing(true)
+    try {
+      const allCards = await getCards()
+
+      // Remove from default deck
+      const updatedCards = allCards.map((c) =>
+        c.cardId === card.cardId ? { ...c, defaultDeck: false } : c
+      )
+
+      await storeCards(updatedCards)
+
+      // Update user synergy
+      const userData = (await getUserData()) || {}
+      const newSynergy = Math.max(
+        0,
+        (userData.totalSynergy || 0) - (card.totalStats || 0)
+      )
+      await storeUserData({ ...userData, totalSynergy: newSynergy })
+
+      await fetchCards()
+    } catch (err) {
+      console.error('❌ Error removing card:', err)
+    } finally {
+      setIsProcessing(false)
+    }
+  }
+
   const handleCardSelectTutorial = async (card, index) => {
     try {
       await handleCardSelect(card)
@@ -148,45 +172,6 @@ const BuildDeck = ({ user }) => {
       }
     } catch (err) {
       console.error('❌ Error in handleCardSelectTutorial:', err)
-    }
-  }
-
-  // ------------------------------------------
-  // Handle card removal
-  // ------------------------------------------
-  const handleRemoveCard = async (card) => {
-    if (!user?.userId || isProcessing) return
-
-    setIsProcessing(true)
-    try {
-      // 🟢 Safe haptic drop
-      try {
-        if (window?.Telegram?.WebApp?.HapticFeedback) {
-          dropHapticFeedback()
-        }
-      } catch (err) {
-        console.warn('⚠️ Haptic skipped on remove:', err)
-      }
-
-      const updatedCard = { ...card, defaultDeck: false }
-      await storeCards([updatedCard])
-
-      const userData = (await getUserData()) || {}
-      const newSynergy = Math.max(
-        0,
-        (userData.totalSynergy || 0) - (card.totalStats || 0)
-      )
-
-      await storeUserData({
-        ...userData,
-        totalSynergy: newSynergy,
-      })
-
-      await fetchCards()
-    } catch (error) {
-      console.error('❌ Error removing card:', error)
-    } finally {
-      setIsProcessing(false)
     }
   }
 

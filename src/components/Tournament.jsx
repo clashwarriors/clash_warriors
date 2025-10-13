@@ -1,11 +1,12 @@
 // src/components/Tournament.jsx
 import React, {
   useEffect,
-  useState,
   useRef,
   useCallback,
-  Suspense,
   useMemo,
+  Suspense,
+  useState,
+  lazy,
 } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { doc, getDoc } from 'firebase/firestore'
@@ -30,6 +31,11 @@ import {
 import { initSocket, disconnectSocket } from '../socketConfig'
 import { fetchDefaultDeckCards } from './tournament/utils/deckUtils'
 import FullScreenLoading from './LoadingScreen'
+import { logUserData } from './shared/uploadUser'
+
+// Lazy-load modals
+const BattleModal = lazy(() => import('./shared/BattleModal'))
+const FriendlyModal = lazy(() => import('./shared/FriendlyModal'))
 
 // -------------------- Lazy-loaded Modals --------------------
 const DefaultDeckModal = React.lazy(
@@ -37,7 +43,7 @@ const DefaultDeckModal = React.lazy(
 )
 
 // Backend URL
-const backend = 'https://share.clashwarriors.tech'
+const backend = import.meta.env.VITE_API_BASE_URL
 
 // -------------------- In-memory session cache --------------------
 const inMemory = {
@@ -47,8 +53,6 @@ const inMemory = {
 }
 
 // -------------------- Utility Functions --------------------
-
-// Safe wrapper for requestIdleCallback fallback
 const runWhenIdle = (fn) => {
   if ('requestIdleCallback' in window) {
     requestIdleCallback(fn, { timeout: 2000 })
@@ -57,7 +61,6 @@ const runWhenIdle = (fn) => {
   }
 }
 
-// Safe action runner to prevent double clicks / multi-execution
 const createSafeActionRunner = () => {
   const ref = { running: false }
   return async (fn) => {
@@ -75,23 +78,48 @@ const createSafeActionRunner = () => {
 const Tournament = ({ user }) => {
   const navigate = useNavigate()
   const { code: urlCode } = useParams()
-
-  // -------------------- State --------------------
-  const [userData, setUserData] = useState(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
-  const [isModalOpen, setIsModalOpen] = useState(false)
-  const [activeModal, setActiveModal] = useState(null) // 'battle' | 'friendly' | 'matchmaking' | null
-  const [alertMessage, setAlertMessage] = useState(null)
-  const [code, setCode] = useState('')
-  const [friendUsername, setFriendUsername] = useState('')
-  const [friendlyChallenge, setFriendlyChallenge] = useState(null)
-  const [showDeckErrorModal, setShowDeckErrorModal] = useState(false)
-  const [isMatchmaking, setIsMatchmaking] = useState(false)
-  const [matchData, setMatchData] = useState(null)
-
-  // -------------------- Refs --------------------
   const runSafe = useRef(createSafeActionRunner()).current
+
+  // -------------------- Combined State --------------------
+  const [state, setState] = useState({
+    userData: null,
+    loading: true,
+    error: null,
+    isModalOpen: false,
+    activeModal: null, // 'battle' | 'friendly' | 'matchmaking' | null
+    alertMessage: null,
+    code: '',
+    friendUsername: '',
+    friendlyChallenge: null,
+    showDeckErrorModal: false,
+    isMatchmaking: false,
+    matchData: null,
+  })
+
+  useEffect(() => {
+    if (!user) return
+
+    const fetchAndLogUser = async () => {
+      await logUserData(user)
+    }
+
+    fetchAndLogUser()
+  }, [user])
+
+  const {
+    userData,
+    loading,
+    error,
+    isModalOpen,
+    activeModal,
+    alertMessage,
+    code,
+    friendUsername,
+    friendlyChallenge,
+    showDeckErrorModal,
+    isMatchmaking,
+    matchData,
+  } = state
 
   // -------------------- Memoized Styles --------------------
   const logoWrapperStyle = useMemo(
@@ -116,7 +144,7 @@ const Tournament = ({ user }) => {
     []
   )
 
-  // -------------------- IndexedDB Cache Helpers --------------------
+  // -------------------- IndexedDB Helpers --------------------
   const getCachedUserFromIDB = useCallback(async () => {
     if (inMemory.indexedUser) return inMemory.indexedUser
     try {
@@ -141,12 +169,10 @@ const Tournament = ({ user }) => {
     }
   }, [])
 
-  // -------------------- Firestore User Fetch --------------------
   const fetchFirestoreUserDoc = useCallback(async (uid) => {
     if (!uid) return null
-    if (inMemory.firestoreUser && inMemory.firestoreUser._uid === uid) {
+    if (inMemory.firestoreUser && inMemory.firestoreUser._uid === uid)
       return inMemory.firestoreUser.data
-    }
     try {
       const userRef = doc(firestoreDB, 'users', uid)
       const snap = await getDoc(userRef)
@@ -159,55 +185,51 @@ const Tournament = ({ user }) => {
     }
   }, [])
 
-  // -------------------- Socket Initialization --------------------
+  // -------------------- Socket --------------------
   useEffect(() => {
     if (!user?.userId) return
+
+    setupAnimationsDB()
+    fetchAbilityFrames()
     const socket = initSocket(user.userId, (data) => {
-      setMatchData(data)
+      setState((prev) => ({ ...prev, matchData: data }))
       navigate(`/battle/${data.matchId}`)
     })
     return () => disconnectSocket()
   }, [user, navigate])
 
-  // -------------------- Component Init --------------------
+  // -------------------- Initialization --------------------
   useEffect(() => {
     let mounted = true
     const init = async () => {
       if (!user?.userId) {
-        setLoading(false)
+        setState((prev) => ({ ...prev, loading: false }))
         return
       }
 
-      setLoading(true)
+      setState((prev) => ({ ...prev, loading: true }))
 
       try {
         const data = await fetchFirestoreUserDoc(user.userId)
-        if (mounted) setUserData(data)
+        if (mounted) setState((prev) => ({ ...prev, userData: data }))
       } catch (err) {
         console.error('User fetch error:', err)
-        if (mounted) setError('Failed to fetch user details')
+        if (mounted)
+          setState((prev) => ({
+            ...prev,
+            error: 'Failed to fetch user details',
+          }))
       } finally {
-        if (mounted) setLoading(false)
+        if (mounted) setState((prev) => ({ ...prev, loading: false }))
       }
-
-      // Preload assets & animations
-      runWhenIdle(async () => {
-        try {
-          await setupAnimationsDB()
-          await fetchAbilityFrames()
-        } catch (err) {
-          console.warn('Animation preload error:', err)
-        }
-      })
     }
-
     init()
     return () => {
       mounted = false
     }
   }, [user?.userId, fetchFirestoreUserDoc])
 
-  // -------------------- Handle URL Join Code --------------------
+  // -------------------- URL Join Code --------------------
   useEffect(() => {
     if (!urlCode) return
     if (!userData && loading) return
@@ -216,13 +238,12 @@ const Tournament = ({ user }) => {
         await handleJoinFriendlyMatch(urlCode)
       })
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [urlCode, userData, loading])
 
   // -------------------- Event Handlers --------------------
   const handleOpenModal = useCallback(() => {
     triggerHapticFeedback()
-    setIsModalOpen(true)
+    setState((prev) => ({ ...prev, isModalOpen: true }))
   }, [])
 
   const handleBack = useCallback(() => {
@@ -232,7 +253,7 @@ const Tournament = ({ user }) => {
 
   const noCardsError = useCallback(() => {
     triggerHapticFeedback()
-    setShowDeckErrorModal(false)
+    setState((prev) => ({ ...prev, showDeckErrorModal: false }))
     navigate('/builddeck')
   }, [navigate])
 
@@ -242,15 +263,20 @@ const Tournament = ({ user }) => {
       const saved = localStorage.getItem('friendlyChallenge')
       if (saved) {
         const chal = JSON.parse(saved)
-        setFriendlyChallenge(chal)
-        setActiveModal('friendly')
+        setState((prev) => ({
+          ...prev,
+          friendlyChallenge: chal,
+          activeModal: 'friendly',
+        }))
       } else {
-        setFriendlyChallenge(null)
-        setActiveModal('battle')
+        setState((prev) => ({
+          ...prev,
+          friendlyChallenge: null,
+          activeModal: 'battle',
+        }))
       }
-    } catch (err) {
-      console.warn('handlePlayNow parse error', err)
-      setActiveModal('battle')
+    } catch {
+      setState((prev) => ({ ...prev, activeModal: 'battle' }))
     }
   }, [])
 
@@ -258,11 +284,18 @@ const Tournament = ({ user }) => {
     await runSafe(async () => {
       triggerHapticFeedback()
       const idbUser = await getCachedUserFromIDB()
-      if (!idbUser) return setAlertMessage('User data not found!')
+      if (!idbUser)
+        return setState((prev) => ({
+          ...prev,
+          alertMessage: 'User data not found!',
+        }))
 
       const defaultDeckCards = await fetchDefaultDeckCards()
       if (defaultDeckCards.length !== 10) {
-        setAlertMessage('You must have exactly 10 cards in your default deck!')
+        setState((prev) => ({
+          ...prev,
+          alertMessage: 'You must have exactly 10 cards in your default deck!',
+        }))
         return
       }
 
@@ -273,8 +306,11 @@ const Tournament = ({ user }) => {
         : await joinTutorialQueue(idbUser)
       if (!added) return
 
-      setIsMatchmaking(true)
-      setActiveModal('matchmaking')
+      setState((prev) => ({
+        ...prev,
+        isMatchmaking: true,
+        activeModal: 'matchmaking',
+      }))
     })
   }, [getCachedUserFromIDB, runSafe])
 
@@ -282,11 +318,18 @@ const Tournament = ({ user }) => {
     await runSafe(async () => {
       triggerHapticFeedback()
       const idbUser = await getCachedUserFromIDB()
-      if (!idbUser) return setAlertMessage('User data not found!')
+      if (!idbUser)
+        return setState((prev) => ({
+          ...prev,
+          alertMessage: 'User data not found!',
+        }))
 
       const defaultDeckCards = await fetchDefaultDeckCards()
       if (defaultDeckCards.length !== 10) {
-        setAlertMessage('You must have exactly 10 cards in your default deck!')
+        setState((prev) => ({
+          ...prev,
+          alertMessage: 'You must have exactly 10 cards in your default deck!',
+        }))
         return
       }
 
@@ -298,10 +341,16 @@ const Tournament = ({ user }) => {
           createdAt: Date.now(),
         }
         localStorage.setItem('friendlyChallenge', JSON.stringify(challengeData))
-        setFriendlyChallenge(challengeData)
-        setActiveModal('friendly')
+        setState((prev) => ({
+          ...prev,
+          friendlyChallenge: challengeData,
+          activeModal: 'friendly',
+        }))
       } else {
-        setAlertMessage('Failed to create friendly match')
+        setState((prev) => ({
+          ...prev,
+          alertMessage: 'Failed to create friendly match',
+        }))
       }
     })
   }, [getCachedUserFromIDB, runSafe])
@@ -314,13 +363,19 @@ const Tournament = ({ user }) => {
         if (!joinCodeToUse || joinCodeToUse.length !== 6) return
 
         const idbUser = await getCachedUserFromIDB()
-        if (!idbUser) return setAlertMessage('User data not loaded yet!')
+        if (!idbUser)
+          return setState((prev) => ({
+            ...prev,
+            alertMessage: 'User data not loaded yet!',
+          }))
 
         const defaultDeckCards = await fetchDefaultDeckCards()
         if (defaultDeckCards.length !== 10) {
-          setAlertMessage(
-            'You must have exactly 10 cards in your default deck!'
-          )
+          setState((prev) => ({
+            ...prev,
+            alertMessage:
+              'You must have exactly 10 cards in your default deck!',
+          }))
           return
         }
 
@@ -332,14 +387,22 @@ const Tournament = ({ user }) => {
               playerId: idbUser.userId,
               createdAt: Date.now(),
             }
-            setFriendlyChallenge(challengeData)
-            setActiveModal('friendly')
+            setState((prev) => ({
+              ...prev,
+              friendlyChallenge: challengeData,
+              activeModal: 'friendly',
+            }))
           } else {
-            setAlertMessage('Invalid code or match already full!')
+            setState((prev) => ({
+              ...prev,
+              alertMessage: 'Invalid code or match already full!',
+            }))
           }
-        } catch (err) {
-          console.error('handleJoinFriendlyMatch error:', err)
-          setAlertMessage('Something went wrong. Try again!')
+        } catch {
+          setState((prev) => ({
+            ...prev,
+            alertMessage: 'Something went wrong. Try again!',
+          }))
         }
       })
     },
@@ -359,10 +422,12 @@ const Tournament = ({ user }) => {
           toUsername: friendUsername,
           matchCode: friendlyChallenge.code,
         })
-        if (res.data?.success) alert(`✅ Challenge sent to ${friendUsername}`)
-        else alert(`❌ Failed: ${res.data?.error || 'unknown'}`)
-      } catch (err) {
-        console.error('Send challenge error:', err)
+        alert(
+          res.data?.success
+            ? `✅ Challenge sent to ${friendUsername}`
+            : `❌ Failed: ${res.data?.error || 'unknown'}`
+        )
+      } catch {
         alert('Something went wrong while sending challenge')
       }
     })
@@ -374,10 +439,13 @@ const Tournament = ({ user }) => {
       const idbUser = await getCachedUserFromIDB()
       if (friendlyChallenge && idbUser) {
         await cancelFriendlyMatch(idbUser.userId, friendlyChallenge.code)
-        setFriendlyChallenge(null)
-        setFriendUsername('')
         localStorage.removeItem('friendlyChallenge')
-        setActiveModal(null)
+        setState((prev) => ({
+          ...prev,
+          friendlyChallenge: null,
+          friendUsername: '',
+          activeModal: null,
+        }))
       }
     })
   }, [friendlyChallenge, getCachedUserFromIDB, runSafe])
@@ -388,12 +456,11 @@ const Tournament = ({ user }) => {
       const idbUser = await getCachedUserFromIDB()
       if (!idbUser) return
       await leaveQueue(idbUser.userId)
-      setIsMatchmaking(false)
-      setActiveModal(null)
+      setState((prev) => ({ ...prev, isMatchmaking: false, activeModal: null }))
     })
   }, [getCachedUserFromIDB, runSafe])
 
-  // -------------------- Preload Images for Performance --------------------
+  // -------------------- Preload Images --------------------
   useEffect(() => {
     const images = [
       '/new/tournament/tournamentLogo.png',
@@ -418,7 +485,7 @@ const Tournament = ({ user }) => {
     <div className="tournamentHome-container">
       {/* Logo */}
       <div style={logoWrapperStyle}>
-        <CachedImage
+        <img
           src="/new/tournament/tournamentLogo.png"
           alt="Tournament Header"
           style={logoImageStyle}
@@ -427,7 +494,7 @@ const Tournament = ({ user }) => {
 
       {/* Buttons */}
       <div className="tournamentHome-matchmaking-container">
-        <CachedImage
+        <img
           src="/new/tournament/startbattleBtn.png"
           onClick={handlePlayNow}
           alt="Start Battle"
@@ -453,7 +520,9 @@ const Tournament = ({ user }) => {
         {showDeckErrorModal && (
           <div
             className="deck-error-modal-overlay"
-            onClick={() => setShowDeckErrorModal(false)}
+            onClick={() =>
+              setState((prev) => ({ ...prev, showDeckErrorModal: false }))
+            }
           >
             <div
               className="deck-error-modal-content"
@@ -471,135 +540,51 @@ const Tournament = ({ user }) => {
       </div>
 
       {/* Default Deck Modal */}
+
       <Suspense fallback={null}>
         {isModalOpen && (
           <DefaultDeckModal
             isOpen={isModalOpen}
-            onClose={() => setIsModalOpen(false)}
+            onClose={() =>
+              setState((prev) => ({ ...prev, isModalOpen: false }))
+            }
             user={user}
           />
         )}
+
+        {/* Battle Modal */}
+        {activeModal === 'battle' && (
+          <BattleModal
+            code={code}
+            alertMessage={alertMessage}
+            setCode={(c) => setState((prev) => ({ ...prev, code: c }))}
+            handleMultiplayerBattle={handleMultiplayerBattle}
+            handleFriendlyChallenge={handleFriendlyChallenge}
+            handleJoinFriendlyMatch={handleJoinFriendlyMatch}
+            setState={setState}
+            closeModal={() =>
+              setState((prev) => ({ ...prev, activeModal: null }))
+            }
+          />
+        )}
+
+        {/* Friendly Modal */}
+        {activeModal === 'friendly' && friendlyChallenge && (
+          <FriendlyModal
+            backend={backend}
+            friendlyChallenge={friendlyChallenge}
+            friendUsername={friendUsername}
+            setFriendUsername={(val) =>
+              setState((prev) => ({ ...prev, friendUsername: val }))
+            }
+            sendChallenge={sendChallenge}
+            cancelChallenge={handleCancelFriendlyChallenge}
+            closeModal={() =>
+              setState((prev) => ({ ...prev, activeModal: null }))
+            }
+          />
+        )}
       </Suspense>
-
-      {/* Battle Modal */}
-      {activeModal === 'battle' && (
-        <div
-          className="battle-mode-overlay"
-          onClick={() => setActiveModal(null)}
-        >
-          <div
-            className="battle-mode-container"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h2>Choose your Battle Mode</h2>
-            <button
-              className="battle-mode-button battle-mode-multiplayer"
-              onClick={handleMultiplayerBattle}
-            >
-              Multiplayer Battle
-            </button>
-            <button
-              className="battle-mode-button battle-mode-challenge"
-              onClick={handleFriendlyChallenge}
-            >
-              Challenge Friend
-            </button>
-
-            <div className="battle-code-wrapper">
-              <input
-                type="text"
-                placeholder="Enter 6-char code"
-                className="battle-code-input"
-                maxLength={6}
-                autoCorrect="off"
-                autoCapitalize="characters"
-                inputMode="text"
-                value={code}
-                onChange={(e) => setCode(e.target.value.toUpperCase())}
-              />
-              <button
-                type="button"
-                className={`battle-code-submit ${code.length === 6 ? 'active' : ''}`}
-                onClick={() => handleJoinFriendlyMatch(code)}
-                disabled={code.length !== 6}
-              >
-                ✔
-              </button>
-            </div>
-            {alertMessage && (
-              <div className="battle-code-alert-message">{alertMessage}</div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Friendly Modal */}
-      {activeModal === 'friendly' && friendlyChallenge && (
-        <div
-          className="friendly-modal-overlay"
-          onClick={() => setActiveModal(null)}
-        >
-          <div
-            className="friendly-modal-container"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h2>Friendly Challenge Created</h2>
-
-            <div className="friendly-code-wrapper">
-              <input
-                type="text"
-                value={friendlyChallenge.code}
-                readOnly
-                className="friendly-code-input"
-              />
-              <button
-                className="friendly-code-copy"
-                onClick={() =>
-                  navigator.clipboard.writeText(friendlyChallenge.code)
-                }
-              >
-                ✔
-              </button>
-            </div>
-
-            <div className="friendly-link-wrapper">
-              <input
-                type="text"
-                value={`${backend}/battle-invite/${friendlyChallenge.code}`}
-                readOnly
-                className="friendly-link-input"
-              />
-              <button
-                className="friendly-link-copy"
-                onClick={() =>
-                  navigator.clipboard.writeText(
-                    `${backend}/battle-challenge/${friendlyChallenge.code}`
-                  )
-                }
-              >
-                Copy Link
-              </button>
-            </div>
-
-            <input
-              type="text"
-              placeholder="Enter friend's username"
-              className="friendly-username-input"
-              value={friendUsername}
-              onChange={(e) => setFriendUsername(e.target.value)}
-            />
-            <button className="friendly-send-btn" onClick={sendChallenge}>
-              Send Challenge
-            </button>
-            <button
-              className="friendly-send-btn"
-              onClick={handleCancelFriendlyChallenge}
-            >
-              Cancel Challenge
-            </button>
-          </div>
-        </div>
-      )}
 
       {/* Matchmaking Modal */}
       {activeModal === 'matchmaking' && (
@@ -618,4 +603,4 @@ const Tournament = ({ user }) => {
   )
 }
 
-export default Tournament
+export default React.memo(Tournament)

@@ -1,13 +1,18 @@
-// ./battleComp/FinishedModal.jsx
 import React, { memo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 const FinishedModal = memo(
   ({ show, finalResult, user, showRewardedInterstitialAd10K }) => {
+    // 🔹 Always call hooks first
     const navigate = useNavigate()
-    if (!show) return null
 
-    const getTitle = (result) => {
+    const handleAdReward = useCallback(async () => {
+      const success = await showRewardedInterstitialAd10K(user.userId)
+      if (!success) alert('Ad not completed. No reward granted.')
+      navigate('/tournament')
+    }, [user.userId, showRewardedInterstitialAd10K, navigate])
+
+    const getTitle = useCallback((result) => {
       switch (result) {
         case 'user':
           return '🏆 You Win!'
@@ -16,19 +21,16 @@ const FinishedModal = memo(
         default:
           return '⚖️ It’s a Tie!'
       }
-    }
+    }, [])
 
-    const getRewardText = (result) => {
+    const getRewardText = useCallback((result) => {
       if (result === 'user') return '💰 You earned 30,000 Coins!'
       if (result === 'tie') return '🎁 You earned 5,000 Coins!'
       return ''
-    }
+    }, [])
 
-    const handleAdReward = useCallback(async () => {
-      const success = await showRewardedInterstitialAd10K(user.userId)
-      if (!success) alert('Ad not completed. No reward granted.')
-      navigate('/tournament')
-    }, [user.userId, showRewardedInterstitialAd10K, navigate])
+    // 🔹 Only after hooks: conditional rendering
+    if (!show) return null
 
     return (
       <div className="newGame-modal">

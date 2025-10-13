@@ -15,7 +15,7 @@ import {
 } from 'firebase/firestore'
 import './style/settings.style.css'
 import { triggerHapticFeedback } from './tournament/utils/haptic'
-
+import { clearGameMemory } from '../utils/clearMemory'
 const Settings = ({ user }) => {
   const wallet = useTonWallet()
   const [tonConnectUI] = useTonConnectUI()
@@ -377,6 +377,10 @@ const Settings = ({ user }) => {
         }}
       >
         Contact Support
+      </button>
+
+      <button className="settings-support-button" onClick={clearGameMemory}>
+        Memory Clear
       </button>
     </div>
   )

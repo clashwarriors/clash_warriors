@@ -1,10 +1,8 @@
 import React, { useState, useEffect } from 'react'
-import { getFirestore, doc, getDoc } from 'firebase/firestore'
 import './style/leaderboard.style.css'
-import { getFromDB, saveToDB } from '../../utils/leaderboardHelper'
 import CachedImage from '../shared/CachedImage'
 
-const KEY = 'top100Users'
+const backend = import.meta.env.VITE_API_BASE_URL
 
 const LeaderBoard = ({ user }) => {
   const [leaderboard, setLeaderboard] = useState([])
@@ -20,48 +18,33 @@ const LeaderBoard = ({ user }) => {
     const loadLeaderboard = async () => {
       setLoading(true)
 
-      // Step 1: Check IndexedDB
-      let cachedUsers = await getFromDB(KEY)
+      try {
+        // Step 1: Fetch top 100 from Postgres backend
+        const response = await fetch(`${backend}/api/global-top100`)
+        const data = await response.json()
 
-      if (!cachedUsers || cachedUsers.length === 0) {
-        // Step 2: Only fetch from Firestore if IndexedDB is empty
-        console.log(
-          '📡 No leaderboard in IndexedDB, fetching from Firestore...'
-        )
-        try {
-          const db = getFirestore()
-          const leaderboardDoc = await getDoc(
-            doc(db, 'leaderboard_meta', 'top100')
-          )
-          cachedUsers = leaderboardDoc.exists()
-            ? leaderboardDoc.data().users || []
-            : []
+        // Step 2: Sort by ELO just in case backend didn't
+        const sortedUsers = data.sort((a, b) => b.elo - a.elo)
 
-          if (cachedUsers.length > 0) {
-            await saveToDB(KEY, cachedUsers)
-            console.log('💾 Leaderboard saved to IndexedDB.')
+        // Step 3: Set leaderboard state
+        setLeaderboard(sortedUsers)
+
+        // Step 4: Set current user's rank if available
+        if (user?.userId) {
+          const index = sortedUsers.findIndex((u) => u.user_id === user.userId)
+          if (index >= 0) {
+            setUserRank(index + 1)
+            setUserData(sortedUsers[index])
+          } else {
+            setUserRank(null)
+            setUserData(null)
           }
-        } catch (err) {
-          console.error('❌ Error fetching leaderboard from Firestore:', err)
-          cachedUsers = []
         }
-      } else {
-        console.log('🗄️ Loaded leaderboard from IndexedDB cache.')
-      }
-
-      // Step 3: Sort and render from IndexedDB
-      const sortedUsers = cachedUsers.sort((a, b) => b.elo - a.elo)
-      setLeaderboard(sortedUsers)
-
-      if (user?.userId) {
-        const index = sortedUsers.findIndex((u) => u.userId === user.userId)
-        if (index >= 0) {
-          setUserRank(index + 1)
-          setUserData(sortedUsers[index])
-        } else {
-          setUserData(null)
-          setUserRank(null)
-        }
+      } catch (err) {
+        console.error('❌ Error fetching leaderboard from PG:', err)
+        setLeaderboard([])
+        setUserRank(null)
+        setUserData(null)
       }
 
       setLoading(false)
