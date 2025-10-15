@@ -2,7 +2,7 @@
 import { openDB } from 'idb'
 
 const DB_NAME = 'ClashDB'
-const DB_VERSION = 2
+const DB_VERSION = 3
 
 // ✅ Global memory caches for ultra-fast reads
 export const memoryCache = {
@@ -26,6 +26,8 @@ export const initDB = async () => {
       if (!db.objectStoreNames.contains('meta')) db.createObjectStore('meta')
       if (!db.objectStoreNames.contains('leaderboard'))
         db.createObjectStore('leaderboard', { keyPath: 'id' })
+      if (!db.objectStoreNames.contains('userDecks'))
+        db.createObjectStore('userDecks', { keyPath: 'deckId' })
     },
   })
 }
@@ -124,6 +126,24 @@ export const getLeaderboard = async () => {
   const data = await db.getAll('leaderboard')
   data.forEach((u) => memoryCache.leaderboard.set(u.id, u))
   return data
+}
+
+// ----- User Decks -----
+export const storeUserDeck = async (deck) => {
+  if (!deck || !deck.deckId) return
+  const db = await initDB()
+  await db.put('userDecks', deck)
+}
+
+export const getUserDeck = async (deckId = 'default') => {
+  const db = await initDB()
+  const deck = await db.get('userDecks', deckId)
+  return deck || { deckId, cards: [], totalSynergy: 0 }
+}
+
+export const clearUserDecks = async () => {
+  const db = await initDB()
+  await db.clear('userDecks')
 }
 
 // ----- Clear All Data -----

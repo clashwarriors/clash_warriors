@@ -40,12 +40,21 @@ const CachedImage = ({
 
       try {
         const db = await initImageDB()
-        const cachedBlob = await db.get(STORE_NAME, key)
+        const cachedData = await db.get(STORE_NAME, key) // could be Blob or Base64 string
 
-        if (cachedBlob) {
-          const objectURL = URL.createObjectURL(cachedBlob)
-          memoryCache.set(key, objectURL)
-          if (isMounted) setImageData(objectURL)
+        let imageURL
+
+        if (cachedData) {
+          // If it's a Blob, create object URL
+          if (cachedData instanceof Blob) {
+            imageURL = URL.createObjectURL(cachedData)
+          } else {
+            // Assume string (Base64 or URL)
+            imageURL = cachedData
+          }
+
+          memoryCache.set(key, imageURL)
+          if (isMounted) setImageData(imageURL)
           return
         }
 
@@ -53,10 +62,16 @@ const CachedImage = ({
         const response = await fetch(src)
         if (!response.ok) throw new Error('Failed to fetch')
         const blob = await response.blob()
-        await db.put(STORE_NAME, blob, key)
-        const objectURL = URL.createObjectURL(blob)
-        memoryCache.set(key, objectURL)
-        if (isMounted) setImageData(objectURL)
+
+        // Convert to Base64 if you want consistent storage
+        const reader = new FileReader()
+        reader.onloadend = () => {
+          const base64 = reader.result
+          db.put(STORE_NAME, base64, key)
+          memoryCache.set(key, base64)
+          if (isMounted) setImageData(base64)
+        }
+        reader.readAsDataURL(blob)
       } catch (err) {
         console.warn(`❌ CachedImage error for ${src}`, err)
         if (isMounted) setImageData(fallback)

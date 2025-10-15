@@ -4,6 +4,16 @@ import './style/dailyRewards.style.css'
 import CachedImage from '../../Shared/CachedImage'
 import { getUserData, storeUserData } from '../../../utils/indexedDBService'
 import { syncUser } from '../../../utils/firebaseSyncService'
+
+// ----------------------
+// ✅ Helper: get local date string (timezone-safe)
+// ----------------------
+const getLocalDateString = () => {
+  const now = new Date()
+  const local = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  return local.toISOString().split('T')[0]
+}
+
 const DailyRewards = React.memo(({ user }) => {
   const [streak, setStreak] = useState(0)
   const [claimedToday, setClaimedToday] = useState(false)
@@ -11,6 +21,9 @@ const DailyRewards = React.memo(({ user }) => {
   const [showSparkle, setShowSparkle] = useState(false)
   const [showBanner, setShowBanner] = useState(false)
 
+  // ----------------------
+  // Static reward config
+  // ----------------------
   const dayImages = useMemo(
     () => [
       '/new/rewards/day1.png',
@@ -29,10 +42,13 @@ const DailyRewards = React.memo(({ user }) => {
     []
   )
 
+  // ----------------------
+  // Fetch streak data from IndexedDB
+  // ----------------------
   const fetchStreak = useCallback(async () => {
     if (!user?.userId) return
 
-    const today = new Date().toISOString().split('T')[0]
+    const today = getLocalDateString()
 
     try {
       const userData = await getUserData()
@@ -44,18 +60,27 @@ const DailyRewards = React.memo(({ user }) => {
       }
 
       if (data.lastClaimed) {
-        const lastDate = new Date(data.lastClaimed)
+        const last = new Date(data.lastClaimed)
+        const lastLocal = new Date(
+          last.getFullYear(),
+          last.getMonth(),
+          last.getDate()
+        )
+        const todayLocal = new Date()
         const diffDays = Math.floor(
-          (new Date(today) - lastDate) / (1000 * 60 * 60 * 24)
+          (todayLocal - lastLocal) / (1000 * 60 * 60 * 24)
         )
 
         if (data.lastClaimed === today) {
+          // Already claimed today
           setClaimedToday(true)
           setStreak(data.streak)
         } else if (diffDays === 1) {
+          // Consecutive day
           setClaimedToday(false)
           setStreak(data.streak)
         } else {
+          // Missed a day or new user — reset streak
           data.streak = 0
           data.lastClaimed = ''
           await storeUserData(data)
@@ -68,20 +93,26 @@ const DailyRewards = React.memo(({ user }) => {
         setStreak(0)
       }
     } catch (error) {
-      console.error('Error fetching streak:', error)
+      console.error('❌ Error fetching streak:', error)
     } finally {
       setLoading(false)
     }
   }, [user?.userId])
 
+  // ----------------------
+  // Confetti trigger
+  // ----------------------
   const triggerConfetti = useCallback(() => {
     confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } })
   }, [])
 
+  // ----------------------
+  // Handle reward claim
+  // ----------------------
   const handleClaim = useCallback(async () => {
     if (!user?.userId || claimedToday) return
 
-    const today = new Date().toISOString().split('T')[0]
+    const today = getLocalDateString()
 
     try {
       const userData = await getUserData()
@@ -92,12 +123,12 @@ const DailyRewards = React.memo(({ user }) => {
         coins: 0,
       }
 
-      let currentStreak = data.streak || 0
+      const currentStreak = data.streak || 0
       const newStreak = currentStreak + 1
       const currentCoins = data.coins || 0
 
+      // Determine reward for current day
       let reward = 0
-
       if (currentStreak < 6) {
         reward = rewardsByDay[currentStreak]
       } else {
@@ -119,32 +150,41 @@ const DailyRewards = React.memo(({ user }) => {
             : data.totalStreaks || 0,
       }
 
-      // Local update
+      // ✅ Local update
       await storeUserData(updatedUserData)
 
-      // Background sync — no UI wait
+      // ✅ Background sync — no UI delay
       syncUser(updatedUserData)
 
-      // UI updates
+      // ✅ UI updates
       triggerConfetti()
       setClaimedToday(true)
       setShowSparkle(true)
       setStreak(updatedUserData.streak)
     } catch (error) {
-      console.error('Error claiming reward:', error)
+      console.error('❌ Error claiming reward:', error)
     }
   }, [user?.userId, claimedToday, rewardsByDay, triggerConfetti])
 
+  // ----------------------
+  // Sparkle animation helper
+  // ----------------------
   const getRandomPosition = useCallback(() => {
     const x = Math.floor(Math.random() * 80) + 10
     const y = Math.floor(Math.random() * 80) + 10
     return { top: `${y}%`, left: `${x}%`, transform: 'translate(-50%, -50%)' }
   }, [])
 
+  // ----------------------
+  // Init
+  // ----------------------
   useEffect(() => {
     fetchStreak()
   }, [fetchStreak])
 
+  // ----------------------
+  // Render
+  // ----------------------
   return (
     <div className="dailyRewards-background">
       {loading ? (
@@ -176,12 +216,18 @@ const DailyRewards = React.memo(({ user }) => {
               return (
                 <div
                   key={index}
-                  className={`dailyRewards-dayWrapper ${isDay7 ? 'day7-wrapper' : ''}`}
+                  className={`dailyRewards-dayWrapper ${
+                    isDay7 ? 'day7-wrapper' : ''
+                  }`}
                 >
                   <CachedImage
                     src={src}
                     alt={`Day ${index + 1}`}
-                    className={`dailyRewards-dayImage ${isDay7 ? 'day7-image' : ''} ${isFaded ? 'faded' : ''} ${isActive ? 'active' : ''} ${isClaimed ? 'claimed' : ''}`}
+                    className={`dailyRewards-dayImage ${
+                      isDay7 ? 'day7-image' : ''
+                    } ${isFaded ? 'faded' : ''} ${
+                      isActive ? 'active' : ''
+                    } ${isClaimed ? 'claimed' : ''}`}
                     onClick={handleClick}
                     style={{ cursor: isActive ? 'pointer' : 'default' }}
                     onAnimationEnd={() => setShowSparkle(false)}

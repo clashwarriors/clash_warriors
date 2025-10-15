@@ -5,6 +5,9 @@ import {
   getCards,
   storeUserData,
   getUserData,
+  storeUserDeck,
+  getUserDeck,
+  clearUserDecks,
 } from '../../utils/indexedDBService'
 import frostGuard from './assets/frostguard.png'
 import starivya from './assets/starviya.png'
@@ -39,117 +42,106 @@ const BuildDeck = ({ user }) => {
   const normalize = (str) => str.toLowerCase().replace(/[^a-z0-9]/g, '')
 
   // Fetch cards
-  const fetchCards = useCallback(async () => {
+  const fetchCardsAndDeck = useCallback(async () => {
     if (!user?.userId) return
 
     try {
-      const cardsData = await getCards() // always fresh from IndexedDB
-      const tempDefault = []
-      const tempAvailable = []
+      // Fetch all cards and the user's deck in parallel
+      const [cardsData, deckData] = await Promise.all([
+        getCards(), // all cards in the DB
+        getUserDeck('default'), // user's saved deck
+      ])
 
-      // Collect cards marked as defaultDeck
-      for (const card of cardsData) {
+      const allCards = cardsData.map((card) => {
         const totalStats = Object.values(card.stats || {}).reduce(
           (a, b) => a + b,
           0
         )
-        const cardWithStats = { ...card, totalStats }
+        return { ...card, totalStats }
+      })
 
-        if (card.defaultDeck) tempDefault.push(cardWithStats)
-        else tempAvailable.push(cardWithStats)
-      }
+      // Split into cards that are in deck and available cards
+      const deckCards = allCards.filter((c) =>
+        deckData.cards.includes(c.cardId)
+      )
+      const availableCards = allCards.filter(
+        (c) => !deckData.cards.includes(c.cardId)
+      )
 
-      // Ensure only first 10 cards remain defaultDeck
-      if (tempDefault.length > 10) {
-        const excessCards = tempDefault.slice(10)
-        for (const card of excessCards) {
-          await storeCards([{ ...card, defaultDeck: false }])
-        }
-        tempDefault.splice(10) // keep only first 10
-      }
-
-      setDefaultCards(tempDefault)
-      setUserCards(tempAvailable)
+      setDefaultCards(deckCards)
+      setUserCards(availableCards)
     } catch (err) {
-      console.error('❌ Error fetching cards:', err)
+      console.error('❌ Error fetching cards and deck:', err)
     }
   }, [user?.userId])
 
   useEffect(() => {
-    fetchCards()
-  }, [fetchCards])
+    fetchCardsAndDeck()
+  }, [fetchCardsAndDeck])
 
   // -------------------------------
-  // Select or toggle a card in default deck
+  // Add card to user's default deck
   // -------------------------------
   const handleCardSelect = async (card) => {
     if (!user?.userId || isProcessing) return
-
     setIsProcessing(true)
-    try {
-      const allCards = await getCards()
-      const currentDefaults = allCards.filter((c) => c.defaultDeck)
 
-      // Already in default deck? Do nothing
-      if (card.defaultDeck) {
+    try {
+      // Get current deck
+      const deck = await getUserDeck('default')
+
+      // Already in deck?
+      if (deck.cards.includes(card.cardId)) {
         alert('Card is already in default deck')
         return
       }
 
-      // Limit max 10
-      if (currentDefaults.length >= 10) {
+      // Limit max 10 cards
+      if (deck.cards.length >= 10) {
         alert('You can only have 10 cards in default deck.')
         return
       }
 
-      // Mark the selected card as true
-      const updatedCards = allCards.map((c) =>
-        c.cardId === card.cardId ? { ...c, defaultDeck: true } : c
-      )
+      // Update deck
+      const newDeck = {
+        ...deck,
+        cards: [...deck.cards, card.cardId],
+        totalSynergy: (deck.totalSynergy || 0) + (card.totalStats || 0),
+      }
 
-      await storeCards(updatedCards)
-
-      // Update user synergy
-      const userData = (await getUserData()) || {}
-      const newSynergy = (userData.totalSynergy || 0) + (card.totalStats || 0)
-      await storeUserData({ ...userData, totalSynergy: newSynergy })
-
-      await fetchCards()
+      await storeUserDeck(newDeck)
+      await fetchCardsAndDeck() // refresh state
     } catch (err) {
-      console.error('❌ Error selecting card:', err)
+      console.error('❌ Error adding card to deck:', err)
     } finally {
       setIsProcessing(false)
     }
   }
 
   // -------------------------------
-  // Remove card from default deck
+  // Remove card from user's default deck
   // -------------------------------
   const handleRemoveCard = async (card) => {
     if (!user?.userId || isProcessing) return
-
     setIsProcessing(true)
+
     try {
-      const allCards = await getCards()
+      const deck = await getUserDeck('default')
 
-      // Remove from default deck
-      const updatedCards = allCards.map((c) =>
-        c.cardId === card.cardId ? { ...c, defaultDeck: false } : c
-      )
+      // Remove card from deck
+      const newDeck = {
+        ...deck,
+        cards: deck.cards.filter((id) => id !== card.cardId),
+        totalSynergy: Math.max(
+          0,
+          (deck.totalSynergy || 0) - (card.totalStats || 0)
+        ),
+      }
 
-      await storeCards(updatedCards)
-
-      // Update user synergy
-      const userData = (await getUserData()) || {}
-      const newSynergy = Math.max(
-        0,
-        (userData.totalSynergy || 0) - (card.totalStats || 0)
-      )
-      await storeUserData({ ...userData, totalSynergy: newSynergy })
-
-      await fetchCards()
+      await storeUserDeck(newDeck)
+      await fetchCardsAndDeck() // refresh state
     } catch (err) {
-      console.error('❌ Error removing card:', err)
+      console.error('❌ Error removing card from deck:', err)
     } finally {
       setIsProcessing(false)
     }

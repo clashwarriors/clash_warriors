@@ -8,7 +8,8 @@ const blobToBase64 = (blob) =>
   })
 
 // 🔹 Global memory cache (store blobs, convert to base64 on render)
-const animationMemoryCache = new Map() // { abilityName -> Blob[] }
+const animationMemoryCache = new Map()
+const soundMemoryCache = new Map()
 
 // ----------------------------------------------------
 // MAIN FUNCTION: Cache all animations into IndexedDB + Memory
@@ -43,7 +44,6 @@ export const setupAnimationsDB = async () => {
     request.onsuccess = async (event) => {
       const db = event.target.result
 
-      // Already cached? Load memory from IndexedDB
       if (localStorage.getItem('animationsCached') === 'true') {
         console.log('✅ Animations already cached, loading memory...')
         for (const storeName of db.objectStoreNames) {
@@ -53,7 +53,7 @@ export const setupAnimationsDB = async () => {
           allReq.onsuccess = () => {
             animationMemoryCache.set(
               storeName,
-              allReq.result.map((f) => f.blob || f.dataUrl) // fallback
+              allReq.result.map((f) => f.dataUrl) // all stored as Base64
             )
           }
         }
@@ -129,16 +129,19 @@ export const setupAnimationsDB = async () => {
 
         for (let i = 1; i <= info.frames; i += BATCH_SIZE) {
           const batchPromises = []
+
           for (let j = 0; j < BATCH_SIZE && i + j <= info.frames; j++) {
             const idx = i + j
             const fileName = `${info.baseName}${String(idx).padStart(3, '0')}.png`
             const filePath = `/animations/${info.folder}/${fileName}`
+
             batchPromises.push(
               fetch(filePath)
                 .then((res) => {
                   if (!res.ok) throw new Error(`File not found: ${filePath}`)
                   return res.blob()
                 })
+                .then((blob) => blobToBase64(blob)) // convert to Base64 here
                 .catch((err) => {
                   console.warn(`❌ Skipping ${fileName}: ${err.message}`)
                   return null
@@ -146,31 +149,117 @@ export const setupAnimationsDB = async () => {
             )
           }
 
-          const batchBlobs = await Promise.all(batchPromises)
-          const validBlobs = batchBlobs.filter(Boolean)
-          validBlobs.forEach((blob) => framesArray.push(blob))
+          const batchBase64 = await Promise.all(batchPromises)
+          const validBase64 = batchBase64.filter(Boolean)
+          validBase64.forEach((dataUrl) => framesArray.push(dataUrl))
 
-          if (validBlobs.length > 0) {
+          if (validBase64.length > 0) {
             const tx = db.transaction(storeName, 'readwrite')
             const store = tx.objectStore(storeName)
-            validBlobs.forEach((blob, idx) => {
+            validBase64.forEach((dataUrl, idx) => {
               const id = `${info.baseName}${String(i + idx).padStart(3, '0')}.png`
-              store.put({ id, blob })
+              store.put({ id, dataUrl })
             })
             await new Promise((r) => (tx.oncomplete = r))
           }
         }
 
-        console.log(`🎯 Cached ${storeName} (${framesArray.length} frames)`)
+        console.log(
+          `🎯 Cached ${storeName} (${framesArray.length} frames as Base64)`
+        )
       }
 
       localStorage.setItem('animationsCached', 'true')
-      console.log('🎉 All animations cached offline + memory')
+      console.log('🎉 All animations cached offline + memory (Base64)')
       resolve(db)
     }
 
     request.onerror = (event) =>
       reject('Error opening Animations DB: ' + event.target.error)
+  })
+}
+
+// ----------------------------------------------------
+// MAIN FUNCTION: Cache all soundEffects into IndexedDB + Memory
+// ----------------------------------------------------
+
+export const setupSoundsDB = async () => {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open('SoundEffects', 1)
+
+    request.onupgradeneeded = (event) => {
+      const db = event.target.result
+      const sounds = [
+        'berserkersFury',
+        'aegisWard',
+        'arcaneOvercharge',
+        'celestialRejuvenation',
+        'furyUnleashed',
+        'guardianBulwark',
+        'mindWrap',
+        'soulLeech',
+        'titanStrike',
+        'twinStrike',
+      ]
+      if (!db.objectStoreNames.contains('sounds')) {
+        db.createObjectStore('sounds', { keyPath: 'name' })
+      }
+    }
+
+    request.onsuccess = async (event) => {
+      const db = event.target.result
+      if (localStorage.getItem('soundsCached') === 'true') {
+        console.log('✅ Sounds already cached, loading memory...')
+        const tx = db.transaction('sounds', 'readonly')
+        const store = tx.objectStore('sounds')
+        const allReq = store.getAll()
+        allReq.onsuccess = () => {
+          allReq.result.forEach((item) =>
+            soundMemoryCache.set(item.name, item.blob)
+          )
+          resolve(db)
+        }
+        allReq.onerror = (err) => reject(err)
+        return
+      }
+
+      console.log('⏬ Downloading and caching sounds...')
+      const soundMap = {
+        berserkersFury: '/soundEffects/berserkersFury.mp3',
+        aegisWard: '/soundEffects/aegisWard.mp3',
+        arcaneOvercharge: '/soundEffects/arcaneOvercharge.mp3',
+        celestialRejuvenation: '/soundEffects/celestialRejuvenction.mp3',
+        furyUnleashed: '/soundEffects/furyUnleashed.mp3',
+        guardianBulwark: '/soundEffects/guardianBulwark.mp3',
+        mindWrap: '/soundEffects/mindWrap.mp3',
+        soulLeech: '/soundEffects/soulLeech.mp3',
+        titanStrike: '/soundEffects/titanStrike.mp3',
+        twinStrike: '/soundEffects/twinStrike.mp3',
+      }
+
+      for (const [name, url] of Object.entries(soundMap)) {
+        try {
+          const res = await fetch(url)
+          if (!res.ok) throw new Error(`Failed to fetch ${url}`)
+          const blob = await res.blob()
+          soundMemoryCache.set(name, blob)
+
+          const tx = db.transaction('sounds', 'readwrite')
+          const store = tx.objectStore('sounds')
+          store.put({ name, blob })
+          await new Promise((r) => (tx.oncomplete = r))
+          console.log(`🎯 Cached sound: ${name}`)
+        } catch (err) {
+          console.warn(`❌ Skipping ${name}: ${err.message}`)
+        }
+      }
+
+      localStorage.setItem('soundsCached', 'true')
+      console.log('🎉 All sounds cached offline + memory')
+      resolve(db)
+    }
+
+    request.onerror = (e) => reject(e.target.error)
   })
 }
 
@@ -194,7 +283,8 @@ export const fetchAbilityFrames = async (abilityName) => {
       const store = tx.objectStore(abilityName)
       const getAllRequest = store.getAll()
       getAllRequest.onsuccess = () => {
-        const frames = getAllRequest.result.map((f) => f.blob || f.dataUrl)
+        // Only fetch Base64 / dataUrl
+        const frames = getAllRequest.result.map((f) => f.dataUrl)
         animationMemoryCache.set(abilityName, frames)
         resolve(frames)
       }
@@ -203,3 +293,74 @@ export const fetchAbilityFrames = async (abilityName) => {
     request.onerror = (e) => reject(e.target.error)
   })
 }
+
+export const fetchSoundEffects = (() => {
+  const activeSounds = []
+
+  // Fetch Audio object directly from IndexedDB
+  const fetchAudio = async (name) => {
+    const db = await new Promise((res, rej) => {
+      const req = indexedDB.open('SoundEffects', 1)
+      req.onsuccess = () => res(req.result)
+      req.onerror = (e) => rej(e.target.error)
+    })
+
+    if (!db.objectStoreNames.contains('sounds')) return null
+
+    const tx = db.transaction('sounds', 'readonly')
+    const store = tx.objectStore('sounds')
+    const req = store.get(name)
+
+    const blob = await new Promise((resolve) => {
+      req.onsuccess = () => resolve(req.result?.blob || null)
+      req.onerror = () => resolve(null)
+    })
+
+    if (!blob) return null
+
+    const audio = new Audio(URL.createObjectURL(blob))
+    audio.preload = 'auto'
+    return audio
+  }
+
+  return {
+    play: async (name, autoStopMs = null) => {
+      const audio = await fetchAudio(name)
+      if (!audio) return null
+
+      audio.play().catch(() => console.warn(`Failed to play sound: ${name}`))
+      activeSounds.push(audio)
+
+      if (autoStopMs) {
+        setTimeout(() => {
+          if (audio && typeof audio.pause === 'function') {
+            audio.pause()
+            audio.currentTime = 0
+            const idx = activeSounds.indexOf(audio)
+            if (idx >= 0) activeSounds.splice(idx, 1)
+          }
+        }, autoStopMs)
+      }
+
+      return audio
+    },
+
+    stop: (audio) => {
+      if (!audio || typeof audio.pause !== 'function') return
+      audio.pause()
+      audio.currentTime = 0
+      const idx = activeSounds.indexOf(audio)
+      if (idx >= 0) activeSounds.splice(idx, 1)
+    },
+
+    stopAll: () => {
+      activeSounds.forEach((audio) => {
+        if (audio && typeof audio.pause === 'function') {
+          audio.pause()
+          audio.currentTime = 0
+        }
+      })
+      activeSounds.length = 0
+    },
+  }
+})()

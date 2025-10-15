@@ -20,6 +20,7 @@ import {
   TrackGroups,
   TwaAnalyticsProvider,
 } from '@tonsolutions/telemetree-react'
+import { clearGameMemory } from './utils/clearMemory'
 
 // Lazy load components
 const Airdrop = lazy(() => import('./components/Airdrop'))
@@ -156,6 +157,15 @@ const MainContent = React.memo(({ user, status }) => {
     location.pathname.startsWith(path)
   )
 
+  useEffect(() => {
+    // Run only once, clear old animation cache if needed
+    if (!localStorage.getItem('cacheClearM1')) {
+      clearGameMemory() // your utility to clear IndexedDB + memory
+      localStorage.setItem('cacheClearM1', 'true')
+      console.log('🗑️ Cleared old animation cache')
+    }
+  }, [])
+  
   return (
     <div>
       <Routes>

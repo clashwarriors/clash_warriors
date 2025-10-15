@@ -3,14 +3,17 @@ import React, { useEffect, useState, useRef, useCallback } from 'react'
 import { ref, onValue, off, update } from 'firebase/database'
 import { showRewardedInterstitialAd10K } from './utils/adsUtility'
 import './style/battle.css'
-import { getCards } from '../../utils/indexedDBService'
+import { getUserDeck, getCards } from '../../utils/indexedDBService'
 import cardHolder from '/assets/gameLogo.avif'
 import summonLeft from './assets/leftSummon.png'
 import summonRight from './assets/rightSummon.png'
 import { realtimeDB } from '../../firebase'
 import { getUserData, storeUserData } from '../../utils/indexedDBService'
 import { PHASES, PHASE_TIMERS, ABILITIES } from './utils/battleModifiers'
-import { fetchAbilityFrames } from '../../utils/AnimationUtility'
+import {
+  fetchAbilityFrames,
+  fetchSoundEffects,
+} from '../../utils/AnimationUtility'
 import { abilityConfig } from './weights/abilites'
 import Joyride from 'react-joyride'
 import { triggerHapticFeedback } from '../tournament/utils/haptic'
@@ -281,9 +284,13 @@ const Battle = ({ user }) => {
       setCurrentAbilityDecision(abilityDecision)
       console.log('⚡ Ability decision this round:', abilityDecision)
       if (data.currentPhase === PHASES.BATTLE) {
-        runAnimation(abilityDecision)
+        lastPlayedRef.current = null
+
+        runAnimation(abilityDecision, tutRound)
         setShowAbilityPopup(false)
       }
+
+      playSound(abilityDecision, data.currentPhase)
 
       // End of match
       if (
@@ -336,17 +343,26 @@ const Battle = ({ user }) => {
 
     const fetchDefaultDeck = async () => {
       try {
+        // 1️⃣ Get all cards and user deck
         const allCards = await getCards()
-        const defaultDeckCards = allCards.filter((card) => card.defaultDeck)
+        const deckData = await getUserDeck('default') // { deckId, cards: [], totalSynergy }
+
+        // 2️⃣ Map deck cardIds to actual card objects
+        const defaultDeckCards = deckData.cards
+          .map((id) => allCards.find((c) => c.cardId === id))
+          .filter(Boolean) // remove missing cards
+          .slice(0, 10) // ensure max 10 cards
+
         setPlayerDeck(defaultDeckCards)
 
-        // Prepare minimal deck for bot
+        // 3️⃣ Prepare minimal deck for bot
         const minimalDeck = defaultDeckCards.map((card) => ({
           cardId: card.cardId,
           cardPhotoSrc: card.photo || card.image,
           stats: card.stats || {},
         }))
 
+        // 4️⃣ Upload to AI if needed
         let botRef = null
         if (match.player1?.userId.startsWith('AIBOTPLAYER_')) {
           botRef = ref(realtimeDB, `ongoingBattles/${matchID}/player1`)
@@ -357,10 +373,10 @@ const Battle = ({ user }) => {
         if (botRef) {
           await update(botRef, { availableCards: minimalDeck })
           console.log('Uploaded deck to AI')
-          botDeckUploadedRef.current = true // mark as uploaded
+          botDeckUploadedRef.current = true
         }
       } catch (err) {
-        console.error('Failed to fetch cards or upload to AI:', err)
+        console.error('❌ Failed to fetch cards or upload to AI:', err)
       }
     }
 
@@ -381,7 +397,7 @@ const Battle = ({ user }) => {
             body: JSON.stringify({
               playerId: userId,
               cardId: card.cardId,
-              photo: card.photo,
+              photo: card.photo || card.image,
               stats: card.stats,
             }),
           }
@@ -495,7 +511,7 @@ const Battle = ({ user }) => {
       (c) => c.displayName === abilityName
     )
     if (!config) {
-      console.warn(`⚠️ No config found for ability: ${abilityName}`)
+      //console.warn(`⚠️ No config found for ability: ${abilityName}`)
       return
     }
 
@@ -505,7 +521,7 @@ const Battle = ({ user }) => {
     const playPart = async (storeKey) => {
       const frames = await fetchAbilityFrames(storeKey)
       if (!frames || frames.length === 0) {
-        console.warn(`⚠️ No frames found for ${storeKey}`)
+        //console.warn(`⚠️ No frames found for ${storeKey}`)
         return
       }
 
@@ -549,7 +565,7 @@ const Battle = ({ user }) => {
 
     // Prevent re-running if already played
     if (lastPlayedRef.current === decisionKey) {
-      console.log(`⏭️ Animation for round ${round} already played, skipping`)
+      //console.log(`⏭️ Animation for round ${round} already played, skipping`)
       return
     }
     lastPlayedRef.current = decisionKey
@@ -575,6 +591,93 @@ const Battle = ({ user }) => {
       console.log('🚫 No animations this round')
     }
   }
+
+  // Play Sounds
+
+  // Canonical ability names
+  const ABILITIES = {
+    AEGIS_WARD: 'Aegis Ward',
+    ARCANE_OVERCHARGE: 'Arcane Overcharge',
+    BERSERKERS_FURY: 'Berserkers Fury',
+    CELESTIAL_REJUVENATION: 'Celestial Rejuvenation',
+    FURY_UNLEASHED: 'Fury Unleashed',
+    GUARDIANS_BULWARK: "Guardian's Bulwark",
+    MINDWRAP: 'Mind Wrap',
+    SOUL_LEECH: 'Soul Leech',
+    TITAN_STRIKE: "Titan's Strike",
+    TWIN_STRIKE: 'Twin Strike',
+  }
+
+  // Map abilities to sound keys
+  const attackAbilities = {
+    [ABILITIES.BERSERKERS_FURY]: 'berserkersFury',
+    [ABILITIES.FURY_UNLEASHED]: 'furyUnleashed',
+    [ABILITIES.MINDWRAP]: 'mindWrap',
+    [ABILITIES.SOUL_LEECH]: 'soulLeech',
+    [ABILITIES.TITAN_STRIKE]: 'titanStrike',
+    [ABILITIES.TWIN_STRIKE]: 'twinStrike',
+  }
+
+  const defenseAbilities = {
+    [ABILITIES.ARCANE_OVERCHARGE]: 'arcaneOvercharge',
+    [ABILITIES.AEGIS_WARD]: 'aegisWard',
+    [ABILITIES.CELESTIAL_REJUVENATION]: 'celestialRejuvenation',
+    [ABILITIES.GUARDIANS_BULWARK]: 'guardianBulwark',
+  }
+
+  // Track all active Audio objects
+  const activeSoundsRef = useRef([])
+
+  const playSound = (abilityDecision, currentPhase) => {
+    if (!abilityDecision) return
+    const { attack, defense } = abilityDecision
+
+    console.log('🔊 PlaySound triggered!', { currentPhase, abilityDecision })
+
+    // ----- SELECTION PHASE -----
+    if (currentPhase === PHASES.SELECTION) {
+      fetchSoundEffects.stopAll() // stop all ongoing battle sounds
+
+      // Play defense sound during selection (no auto-stop)
+      if (defense && defenseAbilities[defense.ability]) {
+        const soundKey = defenseAbilities[defense.ability]
+        fetchSoundEffects.play(soundKey).then((audio) => {
+          if (!audio) return
+          audio.volume = 0.5
+          activeSoundsRef.current.push(audio)
+        })
+      }
+
+      return
+    }
+
+    // ----- BATTLE PHASE -----
+    if (currentPhase === PHASES.BATTLE) {
+      fetchSoundEffects.stopAll() // stop any existing battle sounds
+
+      // ---- Defense Sound ----
+      if (defense && defenseAbilities[defense.ability]) {
+        const soundKey = defenseAbilities[defense.ability]
+        fetchSoundEffects.play(soundKey, 5000).then((audio) => {
+          if (!audio) return
+          audio.volume = 0.5
+          activeSoundsRef.current.push(audio)
+        })
+      }
+
+      // ---- Attack Sound ----
+      if (attack && attackAbilities[attack.ability]) {
+        const soundKey = attackAbilities[attack.ability]
+        fetchSoundEffects.play(soundKey, 5000).then((audio) => {
+          if (!audio) return
+          audio.volume = 0.5
+          activeSoundsRef.current.push(audio)
+        })
+      }
+    }
+  }
+
+  // tutorial
 
   const cooldownSteps = [
     {

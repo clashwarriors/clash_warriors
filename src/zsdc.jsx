@@ -13,6 +13,7 @@ import {
   TrackGroups,
   TwaAnalyticsProvider,
 } from '@tonsolutions/telemetree-react'
+import { clearGameMemory } from './utils/clearMemory'
 
 // ✅ Lazy loaded pages
 const pages = {
@@ -312,6 +313,15 @@ const App = () => {
     () => <MainContent user={user} status={status} />,
     [user, status]
   )
+
+  useEffect(() => {
+    // Run only once, clear old animation cache if needed
+    if (!localStorage.getItem('cacheClearM1')) {
+      clearGameMemory() // your utility to clear IndexedDB + memory
+      localStorage.setItem('cacheClearM1', 'true')
+      console.log('🗑️ Cleared old animation cache')
+    }
+  }, [])
 
   return (
     <TwaAnalyticsProvider

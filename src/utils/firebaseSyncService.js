@@ -27,7 +27,9 @@ export const fetchUserFromBackend = async (userId) => {
 
 export const uploadUserToBackend = async (userData) => {
   try {
-    const res = await axios.post(`${API_BASE}/user/${userData.userId}`, { userData })
+    const res = await axios.post(`${API_BASE}/user/${userData.userId}`, {
+      userData,
+    })
     return res.data
   } catch (error) {
     console.error('Error uploading user to backend:', error)
@@ -150,7 +152,9 @@ export const initializeUser = async (userId, telegramData) => {
 export const syncUser = async (userData) => {
   try {
     if (!userData?.userId) return
-    await initializeUser(userData.userId, userData)
+    userData.lastUpdate = Date.now()
+    await storeUserData(userData)
+    await uploadUserToBackend(userData) // ✅ directly upload without initializeUser
     console.log('🔄 Manual sync complete.')
   } catch (err) {
     console.error('⚠️ Failed to sync:', err)

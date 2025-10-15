@@ -15,7 +15,7 @@ import axios from 'axios'
 import './tournament/style/tournament.style.css'
 import CachedImage from './shared/CachedImage'
 import { triggerHapticFeedback } from './tournament/utils/haptic'
-import { getUserData, getCards } from '../utils/indexedDBService'
+import { getUserData, getCards, getUserDeck } from '../utils/indexedDBService'
 import {
   joinQueue,
   leaveQueue,
@@ -26,10 +26,9 @@ import {
 } from './shared/joinQueue'
 import {
   setupAnimationsDB,
-  fetchAbilityFrames,
+  setupSoundsDB,
 } from '../utils/AnimationUtility'
 import { initSocket, disconnectSocket } from '../socketConfig'
-import { fetchDefaultDeckCards } from './tournament/utils/deckUtils'
 import FullScreenLoading from './LoadingScreen'
 import { logUserData } from './shared/uploadUser'
 
@@ -157,17 +156,32 @@ const Tournament = ({ user }) => {
     }
   }, [])
 
-  const getCachedCardsFromIDB = useCallback(async () => {
-    if (inMemory.indexedCards) return inMemory.indexedCards
+  // ----------------------
+  // Get user's default deck (exactly 10 cards)
+  // ----------------------
+  const fetchDefaultDeckCards = async () => {
     try {
-      const c = await getCards()
-      inMemory.indexedCards = c
-      return c
+      const allCards = await getCards() // all owned cards
+      const deckData = (await getUserDeck('default')) || {
+        cards: [],
+        totalSynergy: 0,
+      }
+
+      const defaultDeckCards = deckData.cards
+        .map((id) => allCards.find((c) => c.cardId === id))
+        .filter(Boolean)
+        .slice(0, 10)
+
+      // ✅ Use existing totalSynergy from deckData
+      const totalSynergy = deckData.totalSynergy || 0
+
+      // Return both deck cards and synergy
+      return { cards: defaultDeckCards, totalSynergy }
     } catch (err) {
-      console.warn('Failed to read cached cards:', err)
-      return []
+      console.error('❌ Failed to fetch default deck cards:', err)
+      return { cards: [], totalSynergy: 0 }
     }
-  }, [])
+  }
 
   const fetchFirestoreUserDoc = useCallback(async (uid) => {
     if (!uid) return null
@@ -189,14 +203,23 @@ const Tournament = ({ user }) => {
   useEffect(() => {
     if (!user?.userId) return
 
-    setupAnimationsDB()
-    fetchAbilityFrames()
     const socket = initSocket(user.userId, (data) => {
       setState((prev) => ({ ...prev, matchData: data }))
       navigate(`/battle/${data.matchId}`)
     })
     return () => disconnectSocket()
   }, [user, navigate])
+
+  // -------------------------
+  // 1️⃣ Setup animations DB + cache
+  // -------------------------
+  useEffect(() => {
+    setupAnimationsDB()
+  }, [])
+
+  useEffect(() => {
+    setupSoundsDB()
+  }, [])
 
   // -------------------- Initialization --------------------
   useEffect(() => {
@@ -290,7 +313,8 @@ const Tournament = ({ user }) => {
           alertMessage: 'User data not found!',
         }))
 
-      const defaultDeckCards = await fetchDefaultDeckCards()
+      const { cards: defaultDeckCards, totalSynergy } =
+        await fetchDefaultDeckCards()
       if (defaultDeckCards.length !== 10) {
         setState((prev) => ({
           ...prev,
@@ -302,8 +326,9 @@ const Tournament = ({ user }) => {
       const tutorialCompleted =
         localStorage.getItem('tutorialCompleted') === 'true'
       const added = tutorialCompleted
-        ? await joinQueue(idbUser)
-        : await joinTutorialQueue(idbUser)
+        ? await joinQueue({ ...idbUser, totalSynergy })
+        : await joinTutorialQueue({ ...idbUser, totalSynergy })
+
       if (!added) return
 
       setState((prev) => ({
@@ -324,7 +349,8 @@ const Tournament = ({ user }) => {
           alertMessage: 'User data not found!',
         }))
 
-      const defaultDeckCards = await fetchDefaultDeckCards()
+      const { cards: defaultDeckCards, totalSynergy } =
+        await fetchDefaultDeckCards()
       if (defaultDeckCards.length !== 10) {
         setState((prev) => ({
           ...prev,
@@ -333,7 +359,7 @@ const Tournament = ({ user }) => {
         return
       }
 
-      const result = await createFriendlyMatch(idbUser)
+      const result = await createFriendlyMatch({ ...idbUser, totalSynergy })
       if (result?.success) {
         const challengeData = {
           code: result.uniqueId,
@@ -369,7 +395,8 @@ const Tournament = ({ user }) => {
             alertMessage: 'User data not loaded yet!',
           }))
 
-        const defaultDeckCards = await fetchDefaultDeckCards()
+        const { cards: defaultDeckCards, totalSynergy } =
+          await fetchDefaultDeckCards()
         if (defaultDeckCards.length !== 10) {
           setState((prev) => ({
             ...prev,
@@ -380,7 +407,10 @@ const Tournament = ({ user }) => {
         }
 
         try {
-          const result = await joinFriendlyQueue(idbUser, joinCodeToUse)
+          const result = await joinFriendlyQueue(
+            { ...idbUser, totalSynergy },
+            joinCodeToUse
+          )
           if (result?.success) {
             const challengeData = {
               code: joinCodeToUse,

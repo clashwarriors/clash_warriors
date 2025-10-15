@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import CachedImage from '../Shared/CachedImage'
-import { getCards } from '../../utils/indexedDBService'
+import { getUserDeck, getCards } from '../../utils/indexedDBService'
 import './style/defaultDeckModal.style.css'
 
 const categories = [
@@ -22,11 +22,18 @@ const DefaultDeckModal = ({ isOpen, onClose, categoryData }) => {
   // ---------------- Fetch default deck once per open ----------------
   const fetchDefaultDeck = useCallback(async () => {
     try {
-      const cards = await getCards()
-      const deck = cards.filter((c) => c.defaultDeck === true).slice(0, 10)
+      // Get all cards and user deck
+      const allCards = await getCards()
+      const deckData = await getUserDeck('default') // deckData.cards is array of cardIds
 
-      // Map deck to include category only once
-      const deckWithCategory = deck.map((card) => {
+      // Map deck cardIds to actual card objects
+      const deckCards = deckData.cards
+        .map((id) => allCards.find((c) => c.cardId === id))
+        .filter(Boolean) // remove missing cards
+        .slice(0, 10)
+
+      // Map deck to include category
+      const deckWithCategory = deckCards.map((card) => {
         const matchedCategory = categories.find((category) => {
           const data = categoryData?.[category]
           return data && Object.prototype.hasOwnProperty.call(data, card.id)
@@ -38,7 +45,7 @@ const DefaultDeckModal = ({ isOpen, onClose, categoryData }) => {
     } catch (err) {
       console.error('❌ Failed to fetch default deck:', err)
     }
-  }, [categoryData])
+  }, [categoryData, categories])
 
   useEffect(() => {
     if (isOpen) fetchDefaultDeck()
