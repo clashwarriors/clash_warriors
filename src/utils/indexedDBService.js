@@ -2,38 +2,53 @@
 import { openDB } from 'idb'
 
 const DB_NAME = 'ClashDB'
-const DB_VERSION = 3
+const DB_VERSION = 4
 
-// ✅ Global memory caches for ultra-fast reads
+// ✅ Persistent connection cache
+let dbInstance = null
+
+// ✅ Ultra-fast memory cache (for hot reloads)
 export const memoryCache = {
   users: new Map(),
   cards: new Map(),
   images: new Map(),
-  leaderboard: new Map(),
   meta: new Map(),
+  decks: new Map(),
 }
 
-// ----- Initialize DB -----
+// =======================
+// ⚙️ Init DB (singleton)
+// =======================
 export const initDB = async () => {
-  return openDB(DB_NAME, DB_VERSION, {
-    upgrade(db) {
-      if (!db.objectStoreNames.contains('user'))
-        db.createObjectStore('user', { keyPath: 'userId' })
-      if (!db.objectStoreNames.contains('cards'))
-        db.createObjectStore('cards', { keyPath: 'cardId' })
-      if (!db.objectStoreNames.contains('images'))
-        db.createObjectStore('images') // ✅ added images store
-      if (!db.objectStoreNames.contains('meta')) db.createObjectStore('meta')
-      if (!db.objectStoreNames.contains('leaderboard'))
-        db.createObjectStore('leaderboard', { keyPath: 'id' })
-      if (!db.objectStoreNames.contains('userDecks'))
-        db.createObjectStore('userDecks', { keyPath: 'deckId' })
-    },
-  })
+  if (dbInstance) return dbInstance
+  try {
+    dbInstance = await openDB(DB_NAME, DB_VERSION, {
+      upgrade(db) {
+        if (!db.objectStoreNames.contains('user'))
+          db.createObjectStore('user', { keyPath: 'userId' })
+        if (!db.objectStoreNames.contains('cards'))
+          db.createObjectStore('cards', { keyPath: 'cardId' })
+        if (!db.objectStoreNames.contains('images'))
+          db.createObjectStore('images')
+        if (!db.objectStoreNames.contains('meta')) db.createObjectStore('meta')
+        if (!db.objectStoreNames.contains('userDecks'))
+          db.createObjectStore('userDecks', { keyPath: 'deckId' })
+      },
+    })
+    return dbInstance
+  } catch (err) {
+    console.error('⚠️ IndexedDB init failed — resetting DB', err)
+    await indexedDB.deleteDatabase(DB_NAME)
+    dbInstance = await openDB(DB_NAME, DB_VERSION)
+    return dbInstance
+  }
 }
 
-// ----- User Data -----
+// =======================
+// 👤 User
+// =======================
 export const storeUserData = async (userData) => {
+  if (!userData?.userId) return
   const db = await initDB()
   await db.put('user', userData)
   memoryCache.users.set(userData.userId, userData)
@@ -49,32 +64,40 @@ export const getUserData = async (userId) => {
   return user
 }
 
-// ----- Cards -----
+// =======================
+// 🃏 Cards
+// =======================
 export const storeCards = async (cards) => {
-  if (!cards || !cards.length) return
+  if (!cards?.length) return
   const db = await initDB()
   const tx = db.transaction('cards', 'readwrite')
-
-  for (const card of cards) {
-    const existing = await tx.store.get(card.cardId)
-    const merged = { ...existing, ...card }
-    await tx.store.put(merged)
-  }
-
+  await Promise.all(
+    cards.map(async (card) => {
+      const existing = await tx.store.get(card.cardId)
+      const merged = { ...existing, ...card }
+      memoryCache.cards.set(card.cardId, merged)
+      await tx.store.put(merged)
+    })
+  )
   await tx.done
 }
 
 export const getCards = async () => {
+  if (memoryCache.cards.size) return Array.from(memoryCache.cards.values())
   const db = await initDB()
   const cards = await db.getAll('cards')
+  cards.forEach((c) => memoryCache.cards.set(c.cardId, c))
   return cards
 }
 
-// ----- Images -----
+// =======================
+// 🖼️ Images
+// =======================
 export const storeImage = async (url, blobOrBase64) => {
+  if (!url || !blobOrBase64) return
   const db = await initDB()
-  await db.put('images', blobOrBase64, url)
   memoryCache.images.set(url, blobOrBase64)
+  await db.put('images', blobOrBase64, url)
 }
 
 export const getImage = async (url) => {
@@ -85,11 +108,13 @@ export const getImage = async (url) => {
   return img
 }
 
-// ----- Meta Data -----
+// =======================
+// 🧠 Meta
+// =======================
 export const setLastUpdate = async (timestamp) => {
   const db = await initDB()
-  await db.put('meta', timestamp, 'lastUpdate')
   memoryCache.meta.set('lastUpdate', timestamp)
+  await db.put('meta', timestamp, 'lastUpdate')
 }
 
 export const getLastUpdate = async () => {
@@ -101,52 +126,38 @@ export const getLastUpdate = async () => {
   return ts
 }
 
-export const setLocalLastOnline = (timestamp) =>
-  localStorage.setItem('lastOnlineTimestamp', timestamp)
+export const setLocalLastOnline = (ts) =>
+  localStorage.setItem('lastOnlineTimestamp', ts)
 export const getLocalLastOnline = () =>
   localStorage.getItem('lastOnlineTimestamp')
 
-// ----- Leaderboard -----
-export const storeLeaderboard = async (list) => {
-  if (!list || !list.length) return
-  const db = await initDB()
-  const tx = db.transaction('leaderboard', 'readwrite')
-  await tx.store.clear()
-  for (const user of list) {
-    await tx.store.put(user)
-    memoryCache.leaderboard.set(user.id, user)
-  }
-  await tx.done
-}
-
-export const getLeaderboard = async () => {
-  if (memoryCache.leaderboard.size > 0)
-    return Array.from(memoryCache.leaderboard.values())
-  const db = await initDB()
-  const data = await db.getAll('leaderboard')
-  data.forEach((u) => memoryCache.leaderboard.set(u.id, u))
-  return data
-}
-
-// ----- User Decks -----
+// =======================
+// 🧩 User Decks
+// =======================
 export const storeUserDeck = async (deck) => {
-  if (!deck || !deck.deckId) return
+  if (!deck?.deckId) return
   const db = await initDB()
+  memoryCache.decks.set(deck.deckId, deck)
   await db.put('userDecks', deck)
 }
 
 export const getUserDeck = async (deckId = 'default') => {
+  if (memoryCache.decks.has(deckId)) return memoryCache.decks.get(deckId)
   const db = await initDB()
   const deck = await db.get('userDecks', deckId)
+  memoryCache.decks.set(deckId, deck || { deckId, cards: [], totalSynergy: 0 })
   return deck || { deckId, cards: [], totalSynergy: 0 }
 }
 
 export const clearUserDecks = async () => {
   const db = await initDB()
   await db.clear('userDecks')
+  memoryCache.decks.clear()
 }
 
-// ----- Clear All Data -----
+// =======================
+// 🧹 Clear All
+// =======================
 export const clearAllData = async () => {
   const db = await initDB()
   await Promise.all([
@@ -154,11 +165,8 @@ export const clearAllData = async () => {
     db.clear('cards'),
     db.clear('images'),
     db.clear('meta'),
-    db.clear('leaderboard'),
+    db.clear('userDecks'),
   ])
-  memoryCache.users.clear()
-  memoryCache.cards.clear()
-  memoryCache.images.clear()
-  memoryCache.meta.clear()
-  memoryCache.leaderboard.clear()
+  Object.values(memoryCache).forEach((map) => map.clear())
+  console.log('🧹 Local DB + memory cache fully cleared.')
 }

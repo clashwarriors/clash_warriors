@@ -24,12 +24,8 @@ import {
   joinFriendlyQueue,
   cancelFriendlyMatch,
 } from './shared/joinQueue'
-import {
-  setupAnimationsDB,
-  setupSoundsDB,
-} from '../utils/AnimationUtility'
+import { setupAnimationsDB, setupSoundsDB } from '../utils/AnimationUtility'
 import { initSocket, disconnectSocket } from '../socketConfig'
-import FullScreenLoading from './LoadingScreen'
 import { logUserData } from './shared/uploadUser'
 
 // Lazy-load modals
@@ -85,7 +81,7 @@ const Tournament = ({ user }) => {
     loading: true,
     error: null,
     isModalOpen: false,
-    activeModal: null, // 'battle' | 'friendly' | 'matchmaking' | null
+    activeModal: null,
     alertMessage: null,
     code: '',
     friendUsername: '',
@@ -201,13 +197,29 @@ const Tournament = ({ user }) => {
 
   // -------------------- Socket --------------------
   useEffect(() => {
-    if (!user?.userId) return
+    if (!user?.userId) {
+      console.warn('⚠️ No userId found, skipping socket init')
+      return
+    }
+
+    console.log('🔌 Initializing socket for user:', user.userId)
 
     const socket = initSocket(user.userId, (data) => {
-      setState((prev) => ({ ...prev, matchData: data }))
+      console.log('📨 Match data received from socket:', data)
+
+      if (!data?.matchId) {
+        console.error('❌ Match data missing matchId, cannot navigate:', data)
+        return
+      }
+
+      console.log('➡️ Navigating to battle page with matchId:', data.matchId)
       navigate(`/battle/${data.matchId}`)
     })
-    return () => disconnectSocket()
+
+    return () => {
+      console.log('🛑 Disconnecting socket')
+      disconnectSocket()
+    }
   }, [user, navigate])
 
   // -------------------------
@@ -509,7 +521,6 @@ const Tournament = ({ user }) => {
 
   // -------------------- Render --------------------
   if (error) return <h2>{error}</h2>
-  if (loading) return <FullScreenLoading />
 
   return (
     <div className="tournamentHome-container">

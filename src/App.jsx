@@ -7,22 +7,20 @@ import {
   useNavigate,
 } from 'react-router-dom'
 import { TonConnectUIProvider } from '@tonconnect/ui-react'
-import { getUserData } from './utils/indexedDBService'
-import imageList from './assets/imageList'
-import { preloadImagesToIDB } from './utils/imagePreloader'
-
-import Dashboard from './components/Dashboard'
-import Footer from './components/Footer'
-import Tournament from './components/Tournament'
-import Premium from './components/Premium'
-import FirebaseImage from './components/new'
+import { initializeUser } from './utils/firebaseSyncService'
 import {
   TrackGroups,
   TwaAnalyticsProvider,
 } from '@tonsolutions/telemetree-react'
 import { clearGameMemory } from './utils/clearMemory'
 
-// Lazy load components
+import Dashboard from './components/Dashboard'
+import Footer from './components/Footer'
+import Tournament from './components/Tournament'
+import Premium from './components/Premium'
+import FirebaseImage from './components/new'
+
+// Lazy load
 const Airdrop = lazy(() => import('./components/Airdrop'))
 const Collections = lazy(() => import('./components/Collections'))
 const Friends = lazy(() => import('./components/Friends'))
@@ -37,85 +35,35 @@ const Battle = lazy(() => import('./components/tournament/Battle'))
 const LeaderBoard = lazy(() => import('./components/tournament/LeaderBoard'))
 const Settings = lazy(() => import('./components/Settings'))
 
+// ==============================
+// App Component (Mock User)
+// ==============================
 function App() {
-  const [user, setUser] = useState(null)
-  const [status, setStatus] = useState('Loading... Please wait.')
-  const [assetsReady, setAssetsReady] = useState(false)
+  const [user, setUser] = useState({
+    userId: '6845597761',
+  })
+  const [status, setStatus] = useState('Ready!')
 
-  // ✅ MOCK USER LOADING FROM INDEXEDDB / FIRESTORE
+  // Telegram WebApp config (optional)
   useEffect(() => {
-    const MOCK_USER_ID = '6845597761' // your real userId
-    const loadUser = async () => {
-      try {
-        const userData = await getUserData(MOCK_USER_ID) // directly fetch by userId
-        if (userData) {
-          setUser(userData)
-          setStatus('Data loaded from local DB.')
-        } else {
-          setStatus('User not found locally.')
-        }
-      } catch (err) {
-        console.error('Failed to load user:', err)
-        setStatus('Error loading user data.')
-      }
-    }
-
-    loadUser()
-  }, [])
-
-  // Coin generator logic
-  useEffect(() => {
-    const handleOnline = () => startCoinGenerator()
-    const handleOffline = () => stopCoinGenerator()
-    window.addEventListener('online', handleOnline)
-    window.addEventListener('offline', handleOffline)
-    return () => {
-      window.removeEventListener('online', handleOnline)
-      window.removeEventListener('offline', handleOffline)
+    const tg = window.Telegram?.WebApp
+    if (tg) {
+      tg.setHeaderColor('#000000')
+      tg.BackButton.show()
+      tg.BackButton.onClick(() => {
+        if (window.history.length > 1) window.history.back()
+        else tg.close()
+      })
     }
   }, [])
 
-  // Telegram WebApp config (optional, can leave as mock)
-  if (window.Telegram?.WebApp) {
-    const tg = window.Telegram.WebApp
-    tg.setHeaderColor('#000000')
-    tg.BackButton.show()
-    tg.BackButton.onClick(() => {
-      if (window.history.length > 1) window.history.back()
-      else tg.close()
-    })
-  }
-
+  // Clear old cache once
   useEffect(() => {
-    const loadAssets = async () => {
-      try {
-        await preloadImagesToIDB(imageList)
-        setAssetsReady(true)
-      } catch (error) {
-        console.error('Error preloading assets:', error)
-        setStatus('Error loading assets.')
-      }
+    if (!localStorage.getItem('cacheClearM1')) {
+      clearGameMemory()
+      localStorage.setItem('cacheClearM1', 'true')
     }
-    loadAssets()
   }, [])
-
-  if (!user || !assetsReady) {
-    return (
-      <div>
-        <img
-          src="/loading.png"
-          alt="Loading"
-          style={{
-            width: '100%',
-            height: '100%',
-            objectFit: 'contain',
-            position: 'absolute',
-            top: 0,
-          }}
-        />
-      </div>
-    )
-  }
 
   return (
     <TwaAnalyticsProvider
@@ -134,15 +82,19 @@ function App() {
   )
 }
 
+// ==============================
+// Main Content / Routes
+// ==============================
 const MainContent = React.memo(({ user, status }) => {
   const location = useLocation()
   const navigate = useNavigate()
 
+  // Telegram Settings Button (mock)
   useEffect(() => {
     const tg = window.Telegram?.WebApp
     tg?.ready()
     tg?.SettingsButton.show().onClick(() => navigate('/settings'))
-    return () => tg?.SettingsButton.offClick()
+    return () => tg?.SettingsButton.offClick?.()
   }, [navigate])
 
   const hideFooterPages = [
@@ -157,15 +109,6 @@ const MainContent = React.memo(({ user, status }) => {
     location.pathname.startsWith(path)
   )
 
-  useEffect(() => {
-    // Run only once, clear old animation cache if needed
-    if (!localStorage.getItem('cacheClearM1')) {
-      clearGameMemory() // your utility to clear IndexedDB + memory
-      localStorage.setItem('cacheClearM1', 'true')
-      console.log('🗑️ Cleared old animation cache')
-    }
-  }, [])
-  
   return (
     <div>
       <Routes>

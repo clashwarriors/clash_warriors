@@ -1,6 +1,3 @@
-// src/components/FullScreenLoading.jsx
-import React from 'react'
-
 const FullScreenLoading = () => {
   return (
     <div

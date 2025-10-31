@@ -129,8 +129,12 @@ const LeaderBoard = ({ user }) => {
             <tbody className="leaderboard-tbody">
               {remaining.map((player, index) => (
                 <tr
-                  key={player.userId}
-                  className={`leaderboard-row ${player.userId === user?.userId ? 'leaderboard-highlight' : ''}`}
+                  key={player.userId || `player-${index}`} // safe unique key
+                  className={`leaderboard-row ${
+                    player.userId === user?.userId
+                      ? 'leaderboard-highlight'
+                      : ''
+                  }`}
                 >
                   <td className="leaderboard-rank">{index + 4}</td>
                   <td className="leaderboard-photo">
@@ -143,15 +147,18 @@ const LeaderBoard = ({ user }) => {
                     />
                   </td>
                   <td className="leaderboard-username">
-                    {player.first_name} {player.last_name}
+                    {player.first_name || 'Unknown'} {player.last_name || ''}
                   </td>
-                  <td className="leaderboard-points">{player.elo}</td>
+                  <td className="leaderboard-points">{player.elo || 0}</td>
                 </tr>
               ))}
 
               {userData &&
                 !leaderboard.some((u) => u.userId === user?.userId) && (
-                  <tr className="leaderboard-row leaderboard-sticky">
+                  <tr
+                    key={userData.userId || 'sticky-user'} // added key
+                    className="leaderboard-row leaderboard-sticky"
+                  >
                     <td className="leaderboard-rank">{userRank || '--'}</td>
                     <td className="leaderboard-photo">
                       <img
@@ -163,7 +170,8 @@ const LeaderBoard = ({ user }) => {
                       />
                     </td>
                     <td className="leaderboard-username">
-                      {userData.first_name} {userData.last_name}
+                      {userData.first_name || 'Unknown'}{' '}
+                      {userData.last_name || ''}
                     </td>
                     <td className="leaderboard-points">{userData.elo || 0}</td>
                   </tr>
