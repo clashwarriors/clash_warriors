@@ -18,12 +18,23 @@ export const logUserData = async (user) => {
     time_zone: fetchedUser.userTimeZone || 'UTC',
   }
 
+  const timezonePayload = {
+    userId: fetchedUser.userId,
+    timezone: fetchedUser.userTimeZone || 'UTC', // match DB column
+  }
+
   const res = await axios.post(
     `${backend}/api/upload-user-mysql/${fetchedUser.userId}`,
     payload,
     { headers: { 'Content-Type': 'application/json' } }
   )
 
-  console.log('Backend response:', res.data)
+  const res2 = await axios.post(
+    `${backend}/api/upload-user-timezone-mysql`,
+    timezonePayload,
+    { headers: { 'Content-Type': 'application/json' } }
+  )
+
+  console.log('Backend response:', res.data, res2.data)
   return res.data
 }

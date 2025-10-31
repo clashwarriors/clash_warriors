@@ -1,189 +1,178 @@
-/* General Container */
-.settings-container {
-  background-color: #121212;
-  color: #ffffff;
-  padding: 1.5rem 1rem;
-  font-family: 'Segoe UI', sans-serif;
-  max-width: 100vw;
+/* ====== General Page Container ====== */
+.settings-page {
+  background: url('/public/new/builddeck/builddeckBG.png') no-repeat center
+    center;
+  background-size: cover;
   min-height: 100vh;
+  color: #fff;
+  padding: 2rem 1rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
-/* Titles */
-.settings-title,
-.settings-faq-title,
-.settings-support-modal-title {
-  font-size: 1.5rem;
-  margin-bottom: 1rem;
+/* ====== Page Title ====== */
+.settings-page__title {
+  font-size: 2.2rem;
+  font-weight: 900;
+  color: #ffffff;
+  margin-bottom: 2rem;
 }
 
-/* Wallet Button (handled by TonConnect styles) */
-
-/* Toggle Sound */
-.settings-sound-toggle {
-  margin-top: 1.5rem;
-  text-align: center;
+/* ====== Wallet ====== */
+.settings-page__wallet {
+  margin-bottom: 2rem;
 }
 
-.settings-sound-label {
-  font-weight: 600;
-  margin-bottom: 0.5rem;
-  display: block;
-}
-
-/* Toggle Switch */
-.switch {
+/* ====== Buttons (Support & Memory) ====== */
+.settings-page__btn {
   position: relative;
   display: inline-block;
-  width: 50px;
-  height: 24px;
-}
-
-.switch input {
-  opacity: 0;
-  width: 0;
-  height: 0;
-}
-
-.slider {
-  position: absolute;
-  cursor: pointer;
-  background-color: #444;
-  border-radius: 34px;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  transition: 0.3s;
-}
-
-.slider:before {
-  position: absolute;
-  content: '';
-  height: 18px;
-  width: 18px;
-  left: 3px;
-  bottom: 3px;
-  background-color: white;
-  border-radius: 50%;
-  transition: 0.3s;
-}
-
-input:checked + .slider {
-  background-color: #00c897;
-}
-
-input:checked + .slider:before {
-  transform: translateX(26px);
-}
-
-/* FAQ Section */
-.settings-faq-support-section {
-  margin-top: 2rem;
-}
-
-.settings-faq-list {
-  margin-top: 1rem;
-  text-align: left;
-}
-
-.settings-faq-item summary {
-  cursor: pointer;
-  font-weight: 600;
-  background-color: #1e1e1e;
-  padding: 0.75rem;
-  border-radius: 6px;
-}
-
-.settings-faq-answer {
-  padding: 0.75rem;
-  font-size: 0.9rem;
-  background-color: #1a1a1a;
-  border-radius: 6px;
-  margin-top: 0.25rem;
-  color: #ddd;
-}
-
-.settings-show-toggle {
-  background: none;
-  border: none;
-  color: #00b4d8;
-  font-weight: bold;
-  text-decoration: underline;
-  cursor: pointer;
-  margin-top: 1rem;
-}
-
-/* Support Button */
-.settings-support-button {
-  margin-top: 2rem;
-  color: #00b4d8;
-  text-decoration: underline;
-  background: none;
+  width: 180px;
+  height: 50px;
+  margin: 0.8rem;
   border: none;
   cursor: pointer;
   font-weight: bold;
+  font-size: 1rem;
+  color: #ffffff;
+  text-shadow: 0 0 5px #000;
+  background-size: cover;
+  background-position: center;
+  border-radius: 12px;
+  transition:
+    transform 0.2s,
+    box-shadow 0.3s;
+  background-color: transparent;
 }
 
-/* Modal */
-.settings-support-modal-backdrop {
+.settings-page__btn--support {
+  background-image: url('/public/new/refer/smallBtn.png');
+}
+
+.settings-page__btn--memory {
+  background-image: url('/public/new/refer/smallBtn.png');
+}
+
+/* ====== FAQ ====== */
+.settings-page__faq {
+  width: 100%;
+  max-width: 600px;
+  margin: 1rem 0 2rem;
+}
+
+.faq-item {
+  background-color: rgba(0, 0, 0, 0.6);
+  border: 2px solid #a7a59f;
+  border-radius: 10px;
+  margin-bottom: 1rem;
+  overflow: hidden;
+  box-shadow: 0 0 10px rgba(255, 215, 0, 0.4);
+}
+
+.faq-item__question {
+  cursor: pointer;
+  padding: 0.8rem 1rem;
+  font-weight: 700;
+  font-size: 1.05rem;
+  color: #ffffff;
+}
+
+.faq-item__answer {
+  padding: 0.8rem 1rem;
+  color: #fff;
+  background-color: rgba(0, 0, 0, 0.5);
+  font-size: 0.95rem;
+}
+
+/* FAQ toggle button */
+.faq-toggle-btn {
+  background: none;
+  border: 2px solid #ffffff;
+  color: #ffffff;
+  font-weight: bold;
+  padding: 0.6rem 1.2rem;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+/* ====== Support Modal ====== */
+.support-modal__backdrop {
   position: fixed;
   top: 0;
   left: 0;
   width: 100%;
   height: 100%;
-  background-color: rgba(0, 0, 0, 0.8);
+  background-color: rgba(0, 0, 0, 0.85);
   display: flex;
-  align-items: center;
   justify-content: center;
+  align-items: center;
   z-index: 9999;
 }
 
-.settings-support-modal-content {
-  background-color: #000000;
-  color: rgb(255, 255, 255);
-  padding: 1.5rem;
-  border-radius: 12px;
+.support-modal__content {
+  background: linear-gradient(145deg, #1a1a1a, #111);
+  padding: 2rem;
+  border-radius: 15px;
   width: 90%;
   max-width: 500px;
   position: relative;
+  box-shadow: 0 0 20px rgba(255, 215, 0, 0.6);
+  border: 2px solid #e9e9e9;
 }
 
-/* Close Button */
-.settings-support-modal-close {
+.support-modal__close {
   position: absolute;
   top: 10px;
   right: 15px;
   border: none;
   background: none;
   font-size: 1.5rem;
-  color: white;
+  color: #fff;
   cursor: pointer;
 }
 
-/* Support Form */
-.settings-support-form input {
-  width: 100%;
-  padding: 0.6rem;
-  border-radius: 8px;
-  border: none;
-  background-color: #2b2b2b;
-  color: white;
-  font-size: 1rem;
+.support-modal__title {
+  color: #ffd700;
+  font-size: 1.3rem;
+  font-weight: 700;
+  margin-bottom: 1rem;
+  text-shadow: 0 0 5px #ff8c00;
 }
 
-.settings-support-submit {
-  margin-top: 0.75rem;
-  padding: 0.6rem 1.2rem;
-  background-color: #0078c8;
-  color: #ffffff;
+/* ====== Support Form ====== */
+.support-form__input {
+  width: 100%;
+  padding: 0.7rem;
+  border-radius: 10px;
   border: none;
-  border-radius: 8px;
+  background-color: #222;
+  color: #fff;
+  font-size: 1rem;
+  margin-bottom: 1rem;
+}
+
+.support-form__submit {
+  width: 100%;
+  padding: 0.7rem;
+  border-radius: 10px;
+  border: none;
+  background-color: #ece3ae;
+  color: #000;
   font-weight: bold;
   cursor: pointer;
-  width: 100%;
+  transition: 0.2s;
+}
+.support-form__message {
+  margin-top: 0.8rem;
+  font-weight: bold;
 }
 
-.settings-support-message {
-  margin-top: 1rem;
-  font-weight: 600;
+.support-form__message.success {
+  color: #00ff00;
+}
+
+.support-form__message.error {
+  color: #ff4444;
 }

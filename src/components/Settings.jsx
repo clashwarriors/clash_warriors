@@ -191,165 +191,68 @@ const Settings = ({ user }) => {
   ]
 
   const visibleFAQs = showAllFAQs ? faqData : faqData.slice(0, 2)
-
   return (
-    <div
-      className="settings-container"
-      style={{ padding: '1rem', textAlign: 'center' }}
-    >
-      <h2 className="settings-title">Settings</h2>
+    <div className="settings-page">
+      <h2 className="settings-page__title">Settings</h2>
 
-      <div
-        style={{ display: 'flex', justifyContent: 'center', margin: '1rem 0' }}
-      >
+      {/* TonConnect Button */}
+      <div className="settings-page__wallet">
         <TonConnectButton />
       </div>
 
-      <div
-        className="settings-sound-toggle"
-        style={{ marginTop: '1rem', marginBottom: '2rem' }}
-      >
-        <label
-          className="settings-sound-label"
-          style={{
-            fontWeight: 'bold',
-            display: 'block',
-            marginBottom: '0.5rem',
-          }}
-        >
-          Sound Effects
-        </label>
-
-        <label className="switch">
-          <input
-            type="checkbox"
-            checked={soundEnabled}
-            onChange={handleToggleSound}
-          />
-          <span className="slider" />
-        </label>
-      </div>
-
-      <div
-        className="settings-faq-list"
-        style={{ textAlign: 'left', maxWidth: '600px', margin: '0 auto' }}
-      >
+      {/* FAQ List */}
+      <div className="settings-page__faq">
         {visibleFAQs.map((faq, idx) => (
-          <details
-            key={idx}
-            className="settings-faq-item"
-            style={{ marginBottom: '1rem' }}
-          >
-            <summary
-              className="settings-faq-question"
-              style={{ cursor: 'pointer', fontWeight: 'bold' }}
-            >
-              Q: {faq.question}
-            </summary>
-            <p className="settings-faq-answer" style={{ marginLeft: '1rem' }}>
-              A: {faq.answer}
-            </p>
+          <details key={idx} className="faq-item">
+            <summary className="faq-item__question">Q: {faq.question}</summary>
+            <p className="faq-item__answer">A: {faq.answer}</p>
           </details>
         ))}
 
         {faqData.length > 2 && (
           <button
-            className="settings-show-toggle"
+            className="faq-toggle-btn"
             onClick={() => setShowAllFAQs(!showAllFAQs)}
-            style={{
-              marginTop: '1.2rem',
-              background: 'none',
-              border: 'none',
-              color: '#fff',
-              cursor: 'pointer',
-              textDecoration: 'underline',
-              fontWeight: 'bold',
-            }}
           >
             {showAllFAQs ? 'Show Less' : 'Show More'}
           </button>
         )}
       </div>
 
+      {/* Support Modal */}
       {showSupportModal && (
         <div
-          className="settings-support-modal-backdrop"
+          className="support-modal__backdrop"
           onClick={() => setShowSupportModal(false)}
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            width: '100%',
-            height: '100%',
-            backgroundColor: 'rgba(0, 0, 0, 0.6)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 9999,
-          }}
         >
           <div
-            className="settings-support-modal-content"
+            className="support-modal__content"
             onClick={(e) => e.stopPropagation()}
-            style={{
-              backgroundColor: '#000',
-              padding: '2rem',
-              borderRadius: '10px',
-              width: '90%',
-              maxWidth: '500px',
-              position: 'relative',
-            }}
           >
             <button
-              className="settings-support-modal-close"
+              className="support-modal__close"
               onClick={() => setShowSupportModal(false)}
-              style={{
-                position: 'absolute',
-                top: '10px',
-                right: '15px',
-                border: 'none',
-                background: 'none',
-                fontSize: '1.5rem',
-                cursor: 'pointer',
-              }}
             >
               &times;
             </button>
-            <h3
-              className="settings-support-modal-title"
-              style={{ marginBottom: '1rem' }}
-            >
-              Submit a Question
-            </h3>
+            <h3 className="support-modal__title">Submit a Question</h3>
 
-            <form
-              className="settings-support-form"
-              onSubmit={handleSubmitQuestion}
-            >
+            <form className="support-form" onSubmit={handleSubmitQuestion}>
               <input
                 type="text"
-                className="settings-support-input"
+                className="support-form__input"
                 value={questionInput}
                 onChange={(e) => setQuestionInput(e.target.value)}
                 placeholder="Describe your issue..."
-                style={{
-                  padding: '0.5rem',
-                  width: '100%',
-                  borderRadius: '6px',
-                  marginBottom: '1rem',
-                }}
               />
-              <button type="submit" className="settings-support-submit">
+              <button type="submit" className="support-form__submit">
                 Submit
               </button>
               {submitMsg && (
                 <div
-                  className="settings-support-message"
-                  style={{
-                    marginTop: '1rem',
-                    color: submitMsg.includes('✅') ? 'green' : 'red',
-                    fontWeight: 'bold',
-                  }}
+                  className={`support-form__message ${
+                    submitMsg.includes('✅') ? 'success' : 'error'
+                  }`}
                 >
                   {submitMsg}
                 </div>
@@ -359,27 +262,19 @@ const Settings = ({ user }) => {
         </div>
       )}
 
+      {/* Support Button */}
       <button
-        className="settings-support-button"
+        className="settings-page__btn settings-page__btn--support"
         onClick={() => setShowSupportModal(true)}
-        style={{
-          marginTop: '1rem',
-          textDecoration: 'none',
-          background: 'none',
-          border: 'none',
-          cursor: 'pointer',
-          height: '40px',
-          width: '150px',
-          backgroundColor: '#007bff',
-          color: '#fff',
-          borderRadius: '10px',
-          marginBottom: '2.8rem',
-        }}
       >
         Contact Support
       </button>
 
-      <button className="settings-support-button" onClick={clearGameMemory}>
+      {/* Memory Clear Button */}
+      <button
+        className="settings-page__btn settings-page__btn--memory"
+        onClick={clearGameMemory}
+      >
         Memory Clear
       </button>
     </div>

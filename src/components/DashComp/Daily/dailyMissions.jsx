@@ -2,7 +2,7 @@ import React, { useState, useCallback, useMemo } from 'react'
 import { triggerHapticFeedback } from '../../tournament/utils/haptic'
 import CachedImage from '../../Shared/CachedImage'
 import './style/dailymissions.style.css'
-
+import { rewardUserAd } from '../../../utils/adsUtility'
 const DailyMission = ({ user }) => {
   const [lastAdAttemptTime, setLastAdAttemptTime] = useState(0)
 
@@ -27,38 +27,6 @@ const DailyMission = ({ user }) => {
       coins: 500000,
     },
   ]
-
-  const handleAdClick = useCallback(async () => {
-    const now = Date.now()
-    const secondsSinceLast = (now - lastAdAttemptTime) / 1000
-
-    if (secondsSinceLast < 10) {
-      alert(
-        `⏳ Wait ${Math.ceil(10 - secondsSinceLast)}s before watching again`
-      )
-      return
-    }
-
-    setLastAdAttemptTime(now)
-
-    try {
-      // Monetag Rewarded Interstitial Call
-      await show_9130916() // keep your ad call here
-
-      // ✅ Reward logic after ad completes
-      if (!user?.userId) return
-
-      // Replace Firestore coins logic with local storage
-      const currentCoins = parseInt(localStorage.getItem('coins') || '0', 10)
-      const updatedCoins = currentCoins + 500000
-      localStorage.setItem('coins', updatedCoins)
-
-      triggerHapticFeedback()
-      alert('🎉 You earned 5,00,000 coins!')
-    } catch (error) {
-      console.error('❌ Ad failed or user skipped:', error)
-    }
-  }, [lastAdAttemptTime, user?.userId])
 
   const renderSocialTasks = useMemo(
     () =>
@@ -120,7 +88,7 @@ const DailyMission = ({ user }) => {
           <CachedImage
             src="/new/refer/watchearn.png"
             alt="Watch Ad"
-            onClick={handleAdClick}
+            onClick={() => rewardUserAd()}
             className={`daily-mission-ad-image ${adCooldown ? 'cooldown' : ''}`}
           />
         </div>

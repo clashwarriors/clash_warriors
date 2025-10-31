@@ -60,6 +60,15 @@ const App = () => {
         const tg = window.Telegram?.WebApp
         if (!tg) return
 
+        window.TelegramWebviewProxy?.postEvent(
+          'web_app_request_fullscreen',
+          '{}'
+        )
+        window.TelegramWebviewProxy?.postEvent(
+          'web_app_setup_swipe_behavior',
+          JSON.stringify({ allow_vertical_swipe: false })
+        )
+
         tg.ready()
         tg.expand()
         tg.disableClosingConfirmation()

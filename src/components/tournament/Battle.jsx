@@ -24,6 +24,7 @@ import AbilityPopup from './battleComp/AbilityPopup'
 import FinishedModal from './battleComp/FinishedModal'
 import PhaseAnnouncement from './battleComp/PhaseAnnouncement'
 import BattleArea from './battleComp/BattleArea'
+import { rewardUserAd } from '../../utils/adsUtility'
 
 const MemoizedPlayerHeader = React.memo(PlayerHeader)
 const MemoizedBattleArea = React.memo(BattleArea)
@@ -321,9 +322,15 @@ const Battle = ({ user }) => {
         setSelectedCard(null)
         setPlayer2SelectedCard(null)
 
-        finishTimeout = setTimeout(() => {
-          navigate('/tournament')
+        finishTimeout = setTimeout(async () => {
+          try {
+            await rewardUserAd() // run ad reward first
+          } catch (err) {
+            console.error('Failed to run ad reward:', err)
+          }
+
           setShowFinishedModal(false)
+          navigate('/tournament')
         }, 10000)
       }
     })
