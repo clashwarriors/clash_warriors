@@ -5,17 +5,17 @@
   "version_name": "2.0.2",
   "icons": [
     {
-      "src": "icon.png",
+      "src": "logo.png",
       "sizes": "64x64 32x32 24x24 16x16",
       "type": "image/png"
     },
     {
-      "src": "icon.png",
+      "src": "logo.png",
       "type": "image/png",
       "sizes": "192x192"
     },
     {
-      "src": "icon.png",
+      "src": "logo.png",
       "type": "image/png",
       "sizes": "512x512"
     }

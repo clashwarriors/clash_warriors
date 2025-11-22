@@ -2,6 +2,7 @@
 import AWS from 'aws-sdk'
 import fs from 'fs'
 import path from 'path'
+import crypto from 'crypto'
 import mime from 'mime'
 import 'dotenv/config'
 
@@ -24,22 +25,51 @@ const s3 = new AWS.S3({
 // Folder to upload
 const uploadDir = path.resolve('./dist')
 
+// Folders to skip
+const SKIP_FOLDERS = ['animations', 'new']
+
+// Compute MD5 hash of a file
+function getFileHash(filePath) {
+  const fileBuffer = fs.readFileSync(filePath)
+  return crypto.createHash('md5').update(fileBuffer).digest('hex')
+}
+
+// Check if object exists and return its ETag
+async function getRemoteETag(key) {
+  try {
+    const head = await s3.headObject({ Bucket: R2_BUCKET, Key: key }).promise()
+    return head.ETag.replace(/"/g, '')
+  } catch (err) {
+    if (err.code === 'NotFound') return null
+    console.error(`❌ Failed to get ETag for ${key}: ${err.message}`)
+    return null
+  }
+}
+
 // Upload a single file
 async function uploadFile(filePath, keyName) {
+  const localHash = getFileHash(filePath)
+  const remoteHash = await getRemoteETag(keyName)
+
+  if (localHash === remoteHash) {
+    console.log(`⏭ Skipped (unchanged): ${keyName}`)
+    return
+  }
+
   const fileContent = fs.readFileSync(filePath)
   const contentType = mime.getType(filePath) || 'application/octet-stream'
 
-  const params = {
-    Bucket: R2_BUCKET,
-    Key: keyName,
-    Body: fileContent,
-    ContentType: contentType,
-    ACL: 'public-read', // optional
-  }
-
   try {
-    await s3.putObject(params).promise()
-    console.log(`✅ Uploaded: ${keyName}`)
+    await s3
+      .putObject({
+        Bucket: R2_BUCKET,
+        Key: keyName,
+        Body: fileContent,
+        ContentType: contentType,
+        ACL: 'public-read', // optional
+      })
+      .promise()
+    console.log(`✅ Uploaded/Updated: ${keyName}`)
   } catch (err) {
     console.error(`❌ Failed to upload ${keyName}: ${err.message}`)
   }
@@ -49,8 +79,14 @@ async function uploadFile(filePath, keyName) {
 function getAllFiles(dir, files = []) {
   fs.readdirSync(dir).forEach((file) => {
     const fullPath = path.join(dir, file)
+
+    // Skip folders in SKIP_FOLDERS
     if (fs.statSync(fullPath).isDirectory()) {
-      getAllFiles(fullPath, files)
+      if (!SKIP_FOLDERS.includes(file)) {
+        getAllFiles(fullPath, files)
+      } else {
+        console.log(`⏭ Skipping folder: ${file}`)
+      }
     } else {
       files.push(fullPath)
     }

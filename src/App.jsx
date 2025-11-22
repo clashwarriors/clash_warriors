@@ -19,8 +19,9 @@ import Footer from './components/Footer'
 import Tournament from './components/Tournament'
 import Premium from './components/Premium'
 import FirebaseImage from './components/new'
+import Loader from './Loader'
 
-// Lazy load
+// Lazy load components
 const Airdrop = lazy(() => import('./components/Airdrop'))
 const Collections = lazy(() => import('./components/Collections'))
 const Friends = lazy(() => import('./components/Friends'))
@@ -35,16 +36,16 @@ const Battle = lazy(() => import('./components/tournament/Battle'))
 const LeaderBoard = lazy(() => import('./components/tournament/LeaderBoard'))
 const Settings = lazy(() => import('./components/Settings'))
 
-// ==============================
-// App Component (Mock User)
-// ==============================
 function App() {
-  const [user, setUser] = useState({
-    userId: '6845597761',
-  })
-  const [status, setStatus] = useState('Ready!')
+  const [user, setUser] = useState(null) // null initially
+  const [status, setStatus] = useState('Initializing...')
+  const [progress, setProgress] = useState(0)
 
-  // Telegram WebApp config (optional)
+  const USER_ID = '6845597761' // existing user ID
+
+  // ---------------------------
+  // Telegram WebApp + User Init
+  // ---------------------------
   useEffect(() => {
     const tg = window.Telegram?.WebApp
     if (tg) {
@@ -54,10 +55,44 @@ function App() {
         if (window.history.length > 1) window.history.back()
         else tg.close()
       })
+
+      const telegramData = tg.initDataUnsafe?.user || {}
+
+      const initUser = async () => {
+        setStatus('Loading user...')
+        try {
+          const { user: loadedUser } = await initializeUser(
+            USER_ID,
+            telegramData
+          )
+          setUser(loadedUser)
+          setProgress(100)
+          setStatus('Ready!')
+        } catch (err) {
+          console.error('Failed to initialize user:', err)
+          setStatus('Failed to load user')
+        }
+      }
+
+      initUser()
     }
   }, [])
 
+  // ---------------------------
+  // Simulate loading progress
+  // ---------------------------
+  useEffect(() => {
+    if (progress < 100) {
+      const timer = setInterval(() => {
+        setProgress((p) => Math.min(p + Math.random() * 10, 99))
+      }, 200)
+      return () => clearInterval(timer)
+    }
+  }, [progress])
+
+  // ---------------------------
   // Clear old cache once
+  // ---------------------------
   useEffect(() => {
     if (!localStorage.getItem('cacheClearM1')) {
       clearGameMemory()
@@ -71,10 +106,14 @@ function App() {
       apiKey="7de1cdbb-494c-40df-acd2-ec4d89c97072"
       trackGroup={TrackGroups.MEDIUM}
     >
-      <TonConnectUIProvider manifestUrl="https://clashtesting.netlify.app/tonconnect-manifest.json">
+      <TonConnectUIProvider manifestUrl="https://play.clashwarriors.tech/tonconnect-manifest.json">
         <Router>
-          <Suspense fallback={<div>Loading...</div>}>
-            <MainContent user={user} status={status} />
+          <Suspense fallback={<Loader progress={progress} />}>
+            {user ? (
+              <MainContent user={user} status={status} />
+            ) : (
+              <Loader progress={progress} />
+            )}
           </Suspense>
         </Router>
       </TonConnectUIProvider>
@@ -89,7 +128,7 @@ const MainContent = React.memo(({ user, status }) => {
   const location = useLocation()
   const navigate = useNavigate()
 
-  // Telegram Settings Button (mock)
+  // Telegram Settings Button
   useEffect(() => {
     const tg = window.Telegram?.WebApp
     tg?.ready()

@@ -61,6 +61,8 @@ export const joinQueue = async (userData) => {
     initialSynergy: userData.totalSynergy,
     joinedAt: Date.now(),
     photoDP: userData.photo_url,
+    walletId: userData.walletId || null, // ✅ Add wallet info
+    mode: userData.mode || 'normal', // ✅ Store battle mode
   })
 
   return true

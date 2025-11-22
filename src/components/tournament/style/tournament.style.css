@@ -266,6 +266,37 @@
   background-image: url('/new/tournament/tournamentBtnTemp.png');
 }
 
+.battle-mode-normal,
+.battle-mode-stake {
+  background-image: url('/new/tournament/tournamentBtnTemp.png');
+  background-size: cover; /* cover the button */
+  background-position: center; /* center the image */
+  background-repeat: no-repeat;
+  width: 100%; /* fill parent container */
+  height: 70px;
+  margin: 12px 0;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  font-weight: bold;
+  color: #ffae00;
+  font-family: 'MedievalSharpBold', sans-serif;
+  border-radius: 12px;
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+/* Hover effect to match multiplayer/challenge */
+.battle-mode-normal:hover,
+.battle-mode-stake:hover {
+  transform: scale(1.05);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.6);
+}
+
 /* Enter code button */
 .battle-mode-enter-code {
   width: 100%;
@@ -492,4 +523,9 @@
     transform: scale(1);
     opacity: 1;
   }
+}
+
+.walletConnectBTN:hover {
+  transform: scale(1.05);
+  filter: drop-shadow(2px 4px rgba(0, 0, 0, 0.151));
 }
